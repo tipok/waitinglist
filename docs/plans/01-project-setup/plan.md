@@ -105,17 +105,17 @@ type DatabaseConfig struct {
 
 ## Implementation Steps
 
-- [ ] Initialize Go module: `go mod init github.com/tipok/waitinglist`
-- [ ] Create directory structure as outlined above
-- [ ] Add `github.com/lib/pq` as an external dependency
-- [ ] Add `github.com/knadh/koanf/v2` and its JSON file provider/parser as external dependencies
-- [ ] Implement `internal/config/config.go` to load configuration from a JSON file using koanf
-  - [ ] Parse `--config` CLI flag for the config file path
-  - [ ] Load and parse the JSON config file
-  - [ ] Apply defaults for missing values
-- [ ] Create a default `config.json` at the project root
-- [ ] Implement `internal/database/postgres.go` to establish DB connection
-- [ ] Implement `cmd/server/main.go` to wire everything together and start the HTTP server
+- [x] Initialize Go module: `go mod init github.com/tipok/waitinglist`
+- [x] Create directory structure as outlined above
+- [x] Add `github.com/lib/pq` as an external dependency
+- [x] Add `github.com/knadh/koanf/v2` and its JSON file provider/parser as external dependencies
+- [x] Implement `internal/config/config.go` to load configuration from a JSON file using koanf
+  - [x] Parse `--config` CLI flag for the config file path
+  - [x] Load and parse the JSON config file
+  - [x] Apply defaults for missing values
+- [x] Create a default `config.json` at the project root
+- [x] Implement `internal/database/postgres.go` to establish DB connection
+- [x] Implement `cmd/server/main.go` to wire everything together and start the HTTP server
 
 ## Testing
 

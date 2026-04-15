@@ -1,0 +1,149 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func writeTempConfig(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
+	return path
+}
+
+func TestParseFlags_ValidConfig(t *testing.T) {
+	path, err := ParseFlags([]string{"--config", "/some/path.json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "/some/path.json" {
+		t.Errorf("expected /some/path.json, got %s", path)
+	}
+}
+
+func TestParseFlags_MissingFlag(t *testing.T) {
+	_, err := ParseFlags([]string{})
+	if err == nil {
+		t.Fatal("expected error for missing --config flag")
+	}
+}
+
+func TestParseFlags_EmptyValue(t *testing.T) {
+	_, err := ParseFlags([]string{"--config", ""})
+	if err == nil {
+		t.Fatal("expected error for empty --config value")
+	}
+}
+
+func TestParseFlags_InvalidFlag(t *testing.T) {
+	_, err := ParseFlags([]string{"--unknown"})
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+}
+
+func TestLoad_ValidFullConfig(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"port": 9090,
+		"database": {
+			"url": "postgres://myhost:5432/mydb?sslmode=disable"
+		}
+	}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Port != 9090 {
+		t.Errorf("expected port 9090, got %d", cfg.Port)
+	}
+	if cfg.Database.URL != "postgres://myhost:5432/mydb?sslmode=disable" {
+		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
+	}
+}
+
+func TestLoad_AllFieldsMapped(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"port": 3000,
+		"database": {
+			"url": "postgres://testhost:5432/testdb?sslmode=require"
+		}
+	}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Port != 3000 {
+		t.Errorf("expected port 3000, got %d", cfg.Port)
+	}
+	if cfg.Database.URL != "postgres://testhost:5432/testdb?sslmode=require" {
+		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
+	}
+}
+
+func TestLoad_DefaultsApplied_EmptyObject(t *testing.T) {
+	path := writeTempConfig(t, `{}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Port != DefaultPort {
+		t.Errorf("expected default port %d, got %d", DefaultPort, cfg.Port)
+	}
+	if cfg.Database.URL != DefaultDatabaseURL {
+		t.Errorf("expected default database URL %s, got %s", DefaultDatabaseURL, cfg.Database.URL)
+	}
+}
+
+func TestLoad_PartialConfig_OnlyPort(t *testing.T) {
+	path := writeTempConfig(t, `{"port": 4000}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Port != 4000 {
+		t.Errorf("expected port 4000, got %d", cfg.Port)
+	}
+	if cfg.Database.URL != DefaultDatabaseURL {
+		t.Errorf("expected default database URL, got %s", cfg.Database.URL)
+	}
+}
+
+func TestLoad_PartialConfig_OnlyDatabase(t *testing.T) {
+	path := writeTempConfig(t, `{"database": {"url": "postgres://other:5432/db"}}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Port != DefaultPort {
+		t.Errorf("expected default port %d, got %d", DefaultPort, cfg.Port)
+	}
+	if cfg.Database.URL != "postgres://other:5432/db" {
+		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
+	}
+}
+
+func TestLoad_NonExistentFile(t *testing.T) {
+	_, err := Load("/nonexistent/path/config.json")
+	if err == nil {
+		t.Fatal("expected error for non-existent file")
+	}
+}
+
+func TestLoad_MalformedJSON(t *testing.T) {
+	path := writeTempConfig(t, `{invalid json`)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+}

@@ -1,0 +1,2 @@
+-- Initial schema migration placeholder
+-- Tables will be defined in subsequent plans
