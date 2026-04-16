@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implement the waiting list feature — allows adding users to the waiting list and tracking when they signed up. When a new user is added to the waiting list, a user entity is created (or looked up if the email already exists) and a corresponding entry is inserted into the `waiting_list` table with a timestamp.
+Implement the waiting list feature — allows adding users to the waiting list and tracking when they signed up. When a new user is added to the waiting list, a user entity is created (or looked up if the email already exists), and a corresponding entry is inserted into the `waiting_list` table with a timestamp.
 
 ## Requirements
 
@@ -54,21 +54,21 @@ The handler orchestrates the full flow:
    - If yes, use the existing user's ID
    - If no, create a new user entity and use its ID
 3. Add the user ID to the `waiting_list` table
-4. Return the combined response (user entity + waiting list entry)
+4. Return the combined response (user entity and waiting list entry)
 
 This keeps the operation atomic from the caller's perspective. Use a database transaction to ensure consistency.
 
 ## Implementation Steps
 
-- [ ] Define `WaitingListEntry` struct in `internal/model/model.go`
-- [ ] Implement `WaitingListRepository` in `internal/repository/waitinglist.go`
-  - [ ] `Add` method with unique constraint handling
-  - [ ] `GetAll` method
-- [ ] Implement HTTP handlers in `internal/handler/waitinglist.go`
-  - [ ] `POST /waitinglist` — add a user to the waiting list (full flow)
-  - [ ] `GET /waitinglist` — list all entries (optional)
-- [ ] Wrap the create-user + add-to-list flow in a transaction
-- [ ] Write unit tests
+- [x] Define `WaitingListEntry` struct in `internal/model/model.go`
+- [x] Implement `WaitingListRepository` in `internal/repository/waitinglist.go`
+  - [x] `Add` method with unique constraint handling
+  - [x] `GetAll` method
+- [x] Implement HTTP handlers in `internal/handler/waitinglist.go`
+  - [x] `POST /waitinglist` — add a user to the waiting list (full flow)
+  - [x] `GET /waitinglist` — list all entries (optional)
+- [x] Wrap the create-user and add-to-list flow in a transaction
+- [x] Write unit tests
 
 ## Testing
 

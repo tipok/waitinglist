@@ -67,7 +67,7 @@ Return `400 Bad Request` with a descriptive message on validation failure.
 - [x] Implement HTTP handlers in `internal/handler/user.go`
   - [x] `POST /users` — create a new user entity
   - [x] `GET /users?email=<email>` — retrieve user by email
-- [x] Add input validation for create requests
+- [x] Add input validation for creation requests
 - [x] Write unit tests for repository and handler layers
 
 ## Testing

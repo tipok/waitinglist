@@ -27,11 +27,18 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 //
 //goland:noinspection ALL
 func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) error {
+	return r.CreateTx(ctx, r.db, user)
+}
+
+// CreateTx inserts a new user using the given DBTX (transaction or DB).
+//
+//goland:noinspection ALL
+func (r *UserRepository) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
 	query := `INSERT INTO user_entity (firstname, lastname, email)
 		VALUES ($1, $2, $3)
 		RETURNING id, has_access`
 
-	err := r.db.QueryRowContext(ctx, query, user.Firstname, user.Lastname, user.Email).
+	err := tx.QueryRowContext(ctx, query, user.Firstname, user.Lastname, user.Email).
 		Scan(&user.ID, &user.HasAccess)
 	if err != nil {
 		var pqErr *pq.Error
@@ -49,12 +56,19 @@ func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) err
 //
 //goland:noinspection ALL
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.UserEntity, error) {
+	return r.GetByEmailTx(ctx, r.db, email)
+}
+
+// GetByEmailTx retrieves a user by email using the given DBTX (transaction or DB).
+//
+//goland:noinspection ALL
+func (r *UserRepository) GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error) {
 	query := `SELECT id, firstname, lastname, email, has_access
 		FROM user_entity
 		WHERE email = $1`
 
 	user := &model.UserEntity{}
-	err := r.db.QueryRowContext(ctx, query, email).
+	err := tx.QueryRowContext(ctx, query, email).
 		Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email, &user.HasAccess)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

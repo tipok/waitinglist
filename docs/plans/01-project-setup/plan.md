@@ -2,7 +2,7 @@
 
 ## Overview
 
-Set up the Go project structure for the waiting list service. The service uses PostgreSQL for storage and relies only on Go's standard library (including the built-in `net/http` mux) to minimize dependencies, with the exception of the PostgreSQL driver and the configuration library.
+Set up the Go project structure for the waiting list service. The service uses PostgreSQL for storage and relies only on Go's standard library (including the built-in `net/http` mux) to minimize dependencies, except the PostgreSQL driver and the configuration library.
 
 ## Requirements
 
@@ -106,7 +106,7 @@ type DatabaseConfig struct {
 ## Implementation Steps
 
 - [x] Initialize Go module: `go mod init github.com/tipok/waitinglist`
-- [x] Create directory structure as outlined above
+- [x] Create a directory structure as outlined above
 - [x] Add `github.com/lib/pq` as an external dependency
 - [x] Add `github.com/knadh/koanf/v2` and its JSON file provider/parser as external dependencies
 - [x] Implement `internal/config/config.go` to load configuration from a JSON file using koanf
