@@ -25,7 +25,9 @@ func TestNewPostgresDB_UnreachableHost(t *testing.T) {
 func TestRunMigrations_NonExistentDirectory(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	err := RunMigrations(db, "/nonexistent/path", logger)
 	if err == nil {
@@ -36,7 +38,9 @@ func TestRunMigrations_NonExistentDirectory(t *testing.T) {
 func TestRunMigrations_EmptyDirectory(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	tmpDir := t.TempDir()
 
@@ -49,7 +53,9 @@ func TestRunMigrations_EmptyDirectory(t *testing.T) {
 func TestRunMigrations_SkipsNonSQLFiles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	tmpDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmpDir, "readme.txt"), []byte("not sql"), 0644); err != nil {
@@ -65,7 +71,9 @@ func TestRunMigrations_SkipsNonSQLFiles(t *testing.T) {
 func TestRunMigrations_SkipsSubdirectories(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	tmpDir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755); err != nil {
@@ -81,7 +89,9 @@ func TestRunMigrations_SkipsSubdirectories(t *testing.T) {
 func TestRunMigrations_UnreadableFile(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "001_init.sql")
@@ -91,7 +101,12 @@ func TestRunMigrations_UnreadableFile(t *testing.T) {
 	if err := os.Chmod(filePath, 0000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(filePath, 0644) })
+	t.Cleanup(func() {
+		err := os.Chmod(filePath, 0644)
+		if err != nil {
+			return
+		}
+	})
 
 	err := RunMigrations(db, tmpDir, logger)
 	if err == nil {
@@ -102,7 +117,9 @@ func TestRunMigrations_UnreadableFile(t *testing.T) {
 func TestRunMigrations_FilesExecutedInOrder(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	db, _ := sql.Open("postgres", "postgres://localhost/test?sslmode=disable")
-	defer db.Close()
+	defer func(db *sql.DB) {
+		_ = db.Close()
+	}(db)
 
 	tmpDir := t.TempDir()
 
@@ -145,6 +162,7 @@ func searchSubstring(s, substr string) bool {
 // Integration tests that require a real PostgreSQL database.
 // Set TEST_DATABASE_URL to run these tests.
 
+//goland:noinspection ALL
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
@@ -170,6 +188,7 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, nil))
 }
 
+//goland:noinspection ALL
 func TestIntegration_RunMigrations_CreatesTables(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -203,6 +222,7 @@ func TestIntegration_RunMigrations_CreatesTables(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_UserEntityColumns(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -229,7 +249,11 @@ func TestIntegration_UserEntityColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("querying columns: %v", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+		}
+	}(rows)
 
 	found := make(map[string]string)
 	for rows.Next() {
@@ -252,6 +276,7 @@ func TestIntegration_UserEntityColumns(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_WaitingListColumns(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -278,7 +303,11 @@ func TestIntegration_WaitingListColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("querying columns: %v", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+		}
+	}(rows)
 
 	found := make(map[string]string)
 	for rows.Next() {
@@ -316,6 +345,7 @@ func TestIntegration_MigrationsIdempotent(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_HasAccessDefaultFalse(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -340,6 +370,7 @@ func TestIntegration_HasAccessDefaultFalse(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_CreatedAtDefaultNow(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -375,6 +406,7 @@ func TestIntegration_CreatedAtDefaultNow(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_DuplicateEmailFails(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -395,6 +427,7 @@ func TestIntegration_DuplicateEmailFails(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_ForeignKeyViolation(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -410,6 +443,7 @@ func TestIntegration_ForeignKeyViolation(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_DuplicateUserIDFails(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
@@ -441,6 +475,7 @@ func TestIntegration_DuplicateUserIDFails(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
 func TestIntegration_CascadeDelete(t *testing.T) {
 	db := openTestDB(t)
 	logger := testLogger()
