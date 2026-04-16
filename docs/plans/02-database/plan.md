@@ -50,9 +50,9 @@ The `UNIQUE` constraint on `email` and `user_id` automatically creates indexes. 
 
 ## Implementation Steps
 
-- [ ] Create `migrations/001_init.sql` with the schema above
-- [ ] Implement migration runner in `internal/database/postgres.go` that reads and executes SQL files on startup
-- [ ] Verify schema creation against a local PostgreSQL instance
+- [x] Create `migrations/001_init.sql` with the schema above
+- [x] Implement migration runner in `internal/database/postgres.go` that reads and executes SQL files on startup
+- [x] Verify schema creation against a local PostgreSQL instance
 
 ## Testing
 

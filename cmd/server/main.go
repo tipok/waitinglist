@@ -38,6 +38,11 @@ func main() {
 		}
 	}(db)
 
+	if err := database.RunMigrations(db, "migrations", logger); err != nil {
+		logger.Error("Error running migrations", "error", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 
 	addr := fmt.Sprintf(":%d", cfg.Port)

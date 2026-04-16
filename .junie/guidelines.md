@@ -1,5 +1,73 @@
 # Project Guidelines
 
+## Project Overview
+
+This is a **waiting list service** written in Go. It uses PostgreSQL for storage and relies on Go's standard library (including `net/http.ServeMux`) to minimize dependencies, with the exception of the PostgreSQL driver and the configuration library.
+
+- **Module**: `github.com/tipok/waitinglist`
+- **Go version**: 1.25.1
+- **Entry point**: `cmd/server/main.go`
+- **Binary name**: `waitinglist` (built to `bin/`)
+
+### External Dependencies
+
+| Dependency | Purpose |
+|---|---|
+| `github.com/lib/pq` | PostgreSQL driver for `database/sql` |
+| `github.com/knadh/koanf/v2` | Configuration loading from JSON file |
+
+### Project Structure
+
+```
+waitinglist/
+├── cmd/server/main.go              # Application entry point
+├── internal/
+│   ├── config/config.go            # Configuration loading (koanf, JSON file)
+│   ├── database/postgres.go        # DB connection setup + migration runner
+│   ├── handler/
+│   │   ├── user.go                 # HTTP handlers for user entity endpoints
+│   │   └── waitinglist.go          # HTTP handlers for waiting list endpoints
+│   ├── model/model.go              # Data structures (UserEntity, WaitingListEntry)
+│   └── repository/
+│       ├── user.go                 # DB operations for user_entity table
+│       └── waitinglist.go          # DB operations for waiting_list table
+├── migrations/
+│   └── 001_init.sql                # SQL migration for initial schema
+├── config.json                     # Default configuration file
+├── docs/plans/                     # Feature plans
+├── Makefile
+├── go.mod
+└── go.sum
+```
+
+### Configuration
+
+The application loads configuration from a JSON file passed via `--config` flag:
+
+```bash
+./bin/waitinglist --config config.json
+```
+
+| Field | Default |
+|---|---|
+| `port` | `8080` |
+| `database.url` | `postgres://localhost:5432/waitinglist?sslmode=disable` |
+
+### Database
+
+- PostgreSQL with two tables: `user_entity` and `waiting_list`.
+- Migrations are plain `.sql` files in `migrations/`, executed in alphabetical order on startup.
+- Schema uses `IF NOT EXISTS` for idempotent migrations.
+- Integration tests requiring a real database are gated by the `TEST_DATABASE_URL` environment variable.
+
+### Startup Flow
+
+1. Parse `--config` flag
+2. Load configuration from JSON file (koanf)
+3. Connect to PostgreSQL
+4. Run migrations from `migrations/` directory
+5. Start HTTP server on configured port
+
 ## Plan Management
 
 - All feature plans are stored in `docs/plans/`, organized by feature in their own directories.
@@ -12,6 +80,16 @@
   4. Plans should be kept up to date as implementation progresses — mark completed steps and note any deviations.
 - Cross-cutting concerns (e.g., database schema shared across features) get their own plan directory.
 - Reference related plans from within a plan when there are dependencies between features.
+
+### Current Plans
+
+| Plan | Status | Description |
+|---|---|---|
+| `01-project-setup` | ✅ Complete | Go module, config loading, DB connection, HTTP server entry point |
+| `02-database` | ✅ Complete | PostgreSQL schema migration (user_entity, waiting_list tables) and migration runner |
+| `03-user-entity` | Not started | User entity CRUD operations |
+| `04-waiting-list` | Not started | Waiting list operations |
+| `05-api` | Not started | HTTP API endpoints |
 
 ## Development Workflow
 
@@ -53,3 +131,4 @@ The project includes a `Makefile` with standard targets. After making any code c
 - Every implementation change must include unit tests.
 - Tests should cover the core logic, edge cases, and error/negative scenarios for the changed code.
 - Do not merge or consider a feature complete without accompanying unit tests.
+- Integration tests that require external services (e.g., PostgreSQL) should be gated by environment variables (e.g., `TEST_DATABASE_URL`) and skip gracefully when not set.
