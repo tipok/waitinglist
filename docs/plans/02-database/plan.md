@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS waiting_list (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    UUID NOT NULL REFERENCES user_entity(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    weight     INTEGER NOT NULL DEFAULT 0,
+    weighted_created_at TIMESTAMP WITH TIME ZONE GENERATED ALWAYS AS (created_at - INTERVAL '1 hour' * weight) STORED,
     UNIQUE(user_id)
 );
 ```
@@ -59,7 +61,7 @@ The `UNIQUE` constraint on `email` and `user_id` automatically creates indexes. 
 - **Core logic**:
   - Test that the migration runner executes SQL files and creates both `user_entity` and `waiting_list` tables.
   - Test that the `user_entity` table has the expected columns (`id`, `firstname`, `lastname`, `email`, `has_access`) with correct types.
-  - Test that the `waiting_list` table has the expected columns (`id`, `user_id`, `created_at`) with correct types.
+  - Test that the `waiting_list` table has the expected columns (`id`, `user_id`, `created_at`, `weight`, `weighted_created_at`) with correct types.  
 - **Edge cases**:
   - Test that running migrations multiple times is idempotent (no errors on re-run due to `IF NOT EXISTS`).
   - Test that `has_access` defaults to `FALSE` when not specified.
