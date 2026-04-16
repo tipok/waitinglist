@@ -249,11 +249,7 @@ func TestIntegration_UserEntityColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("querying columns: %v", err)
 	}
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-		}
-	}(rows)
+	defer rows.Close()
 
 	found := make(map[string]string)
 	for rows.Next() {
@@ -303,11 +299,7 @@ func TestIntegration_WaitingListColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("querying columns: %v", err)
 	}
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-		}
-	}(rows)
+	defer rows.Close()
 
 	found := make(map[string]string)
 	for rows.Next() {

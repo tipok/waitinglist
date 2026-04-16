@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+	"github.com/tipok/waitinglist/internal/logger"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
@@ -51,8 +52,6 @@ func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID s
 }
 
 // GetAll returns all waiting list entries ordered by created_at ascending.
-//
-//goland:noinspection ALL
 func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingListEntry, error) {
 	query := `SELECT id, user_id, created_at
 		FROM waiting_list
@@ -62,7 +61,12 @@ func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingList
 	if err != nil {
 		return nil, fmt.Errorf("querying waiting list: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			logger.NewLogger().Error("Error closing waiting list rows", "error", err)
+		}
+	}()
 
 	entries := make([]model.WaitingListEntry, 0)
 	for rows.Next() {

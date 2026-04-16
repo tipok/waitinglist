@@ -43,12 +43,12 @@ type createUserRequest struct {
 func (h *UserHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var req createUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid JSON body")
+		WriteError(w, http.StatusBadRequest, "invalid JSON body", h.logger)
 		return
 	}
 
 	if err := validateCreateRequest(req); err != nil {
-		h.writeError(w, http.StatusBadRequest, err.Error())
+		WriteError(w, http.StatusBadRequest, err.Error(), h.logger)
 		return
 	}
 
@@ -60,36 +60,36 @@ func (h *UserHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.store.Create(r.Context(), user); err != nil {
 		if errors.Is(err, model.ErrDuplicateEmail) {
-			h.writeError(w, http.StatusConflict, "email already exists")
+			WriteError(w, http.StatusConflict, "email already exists", h.logger)
 			return
 		}
 		h.logger.Error("Failed to create user", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
-	h.writeJSON(w, http.StatusCreated, user)
+	WriteJSON(w, http.StatusCreated, user, h.logger)
 }
 
 func (h *UserHandler) handleGetByEmail(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	if email == "" {
-		h.writeError(w, http.StatusBadRequest, "email query parameter is required")
+		WriteError(w, http.StatusBadRequest, "email query parameter is required", h.logger)
 		return
 	}
 
 	user, err := h.store.GetByEmail(r.Context(), email)
 	if err != nil {
 		if errors.Is(err, model.ErrUserNotFound) {
-			h.writeError(w, http.StatusNotFound, "user not found")
+			WriteError(w, http.StatusNotFound, "user not found", h.logger)
 			return
 		}
 		h.logger.Error("Failed to get user by email", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, user)
+	WriteJSON(w, http.StatusOK, user, h.logger)
 }
 
 func validateCreateRequest(req createUserRequest) error {
@@ -106,16 +106,4 @@ func validateCreateRequest(req createUserRequest) error {
 		return errors.New("email must contain @")
 	}
 	return nil
-}
-
-func (h *UserHandler) writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		h.logger.Error("Failed to encode response", "error", err)
-	}
-}
-
-func (h *UserHandler) writeError(w http.ResponseWriter, status int, message string) {
-	h.writeJSON(w, status, map[string]string{"error": message})
 }

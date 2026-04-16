@@ -70,12 +70,12 @@ Each handler inspects `r.Method` to dispatch to the correct action (e.g., `GET` 
 
 ## Implementation Steps
 
-- [ ] Implement error response helper in `internal/handler/` (shared utility)
-- [ ] Implement `loggingMiddleware` and `jsonContentType` middleware
-- [ ] Register all routes in `cmd/server/main.go`
-- [ ] Implement method dispatching in each handler (`GET`/`POST` switch)
-- [ ] Add `405 Method Not Allowed` responses for unsupported methods
-- [ ] Test endpoints manually with `curl` or write integration tests
+- [x] Implement error response helper in `internal/handler/` (shared utility)
+- [x] Implement `loggingMiddleware` and `jsonContentType` middleware
+- [x] Register all routes in `cmd/server/main.go`
+- [x] Implement method dispatching in each handler (`GET`/`POST` switch)
+- [x] Add `405 Method Not Allowed` responses for unsupported methods
+- [x] Test endpoints manually with `curl` or write integration tests
 
 ## Testing
 

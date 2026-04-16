@@ -60,12 +60,12 @@ type addToWaitingListResponse struct {
 func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	var req addToWaitingListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "invalid JSON body")
+		WriteError(w, http.StatusBadRequest, "invalid JSON body", h.logger)
 		return
 	}
 
 	if err := validateWaitingListRequest(req); err != nil {
-		h.writeError(w, http.StatusBadRequest, err.Error())
+		WriteError(w, http.StatusBadRequest, err.Error(), h.logger)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	tx, err := h.waitListStore.BeginTx(ctx)
 	if err != nil {
 		h.logger.Error("Failed to begin transaction", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 	defer func() {
@@ -86,7 +86,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if !errors.Is(err, model.ErrUserNotFound) {
 			h.logger.Error("Failed to look up user by email", "error", err)
-			h.writeError(w, http.StatusInternalServerError, "internal server error")
+			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 			return
 		}
 
@@ -98,7 +98,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := h.userStore.CreateTx(ctx, tx, user); err != nil {
 			h.logger.Error("Failed to create user", "error", err)
-			h.writeError(w, http.StatusInternalServerError, "internal server error")
+			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 			return
 		}
 	}
@@ -107,35 +107,35 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	entry, err := h.waitListStore.Add(ctx, tx, user.ID)
 	if err != nil {
 		if errors.Is(err, model.ErrAlreadyOnWaitingList) {
-			h.writeError(w, http.StatusConflict, "user is already on the waiting list")
+			WriteError(w, http.StatusConflict, "user is already on the waiting list", h.logger)
 			return
 		}
 		h.logger.Error("Failed to add to waiting list", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		h.logger.Error("Failed to commit transaction", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
-	h.writeJSON(w, http.StatusCreated, addToWaitingListResponse{
+	WriteJSON(w, http.StatusCreated, addToWaitingListResponse{
 		User:             user,
 		WaitingListEntry: entry,
-	})
+	}, h.logger)
 }
 
 func (h *WaitingListHandler) handleGetAll(w http.ResponseWriter, r *http.Request) {
 	entries, err := h.waitListStore.GetAll(r.Context())
 	if err != nil {
 		h.logger.Error("Failed to get waiting list entries", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "internal server error")
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, entries)
+	WriteJSON(w, http.StatusOK, entries, h.logger)
 }
 
 func validateWaitingListRequest(req addToWaitingListRequest) error {
@@ -152,16 +152,4 @@ func validateWaitingListRequest(req addToWaitingListRequest) error {
 		return errors.New("email must contain @")
 	}
 	return nil
-}
-
-func (h *WaitingListHandler) writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		h.logger.Error("Failed to encode response", "error", err)
-	}
-}
-
-func (h *WaitingListHandler) writeError(w http.ResponseWriter, status int, message string) {
-	h.writeJSON(w, status, map[string]string{"error": message})
 }
