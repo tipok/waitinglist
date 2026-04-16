@@ -26,10 +26,13 @@ func TestParseFlags_ValidConfig(t *testing.T) {
 	}
 }
 
-func TestParseFlags_MissingFlag(t *testing.T) {
-	_, err := ParseFlags([]string{})
-	if err == nil {
-		t.Fatal("expected error for missing --config flag")
+func TestParseFlags_DefaultValue(t *testing.T) {
+	path, err := ParseFlags([]string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "conf/dev.json" {
+		t.Errorf("expected default conf/dev.json, got %s", path)
 	}
 }
 
@@ -37,6 +40,16 @@ func TestParseFlags_EmptyValue(t *testing.T) {
 	_, err := ParseFlags([]string{"--config", ""})
 	if err == nil {
 		t.Fatal("expected error for empty --config value")
+	}
+}
+
+func TestParseFlags_OverrideDefault(t *testing.T) {
+	path, err := ParseFlags([]string{"--config", "custom.json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "custom.json" {
+		t.Errorf("expected custom.json, got %s", path)
 	}
 }
 
