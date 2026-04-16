@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS user_entity (
 CREATE TABLE IF NOT EXISTS waiting_list (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    UUID NOT NULL REFERENCES user_entity(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     weight     INTEGER NOT NULL DEFAULT 0,
-    weighted_created_at TIMESTAMP WITH TIME ZONE GENERATED ALWAYS AS (created_at - INTERVAL '1 hour' * weight) STORED,
+    weighted_created_at TIMESTAMP GENERATED ALWAYS AS (created_at - INTERVAL '1 hour' * weight) STORED,
     UNIQUE(user_id)
 );

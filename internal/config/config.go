@@ -26,7 +26,7 @@ type DatabaseConfig struct {
 // ParseFlags parses the --config flag from os.Args and returns the config file path.
 func ParseFlags(args []string) (string, error) {
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
-	configPath := fs.String("config", "", "path to JSON configuration file")
+	configPath := fs.String("config", "conf/dev.json", "path to JSON configuration file")
 
 	if err := fs.Parse(args); err != nil {
 		return "", fmt.Errorf("parsing flags: %w", err)
