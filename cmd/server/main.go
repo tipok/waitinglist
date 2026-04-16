@@ -9,6 +9,8 @@ import (
 
 	"github.com/tipok/waitinglist/internal/config"
 	"github.com/tipok/waitinglist/internal/database"
+	"github.com/tipok/waitinglist/internal/handler"
+	"github.com/tipok/waitinglist/internal/repository"
 )
 
 func main() {
@@ -43,7 +45,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	userRepo := repository.NewUserRepository(db)
+	userHandler := handler.NewUserHandler(userRepo, logger)
+
 	mux := http.NewServeMux()
+	userHandler.RegisterRoutes(mux)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	logger.Info("Starting server", "addr", addr)

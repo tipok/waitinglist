@@ -60,15 +60,15 @@ Return `400 Bad Request` with a descriptive message on validation failure.
 
 ## Implementation Steps
 
-- [ ] Define `UserEntity` struct in `internal/model/model.go`
-- [ ] Implement `UserRepository` in `internal/repository/user.go`
-  - [ ] `Create` method with unique constraint error handling
-  - [ ] `GetByEmail` method with not-found handling
-- [ ] Implement HTTP handlers in `internal/handler/user.go`
-  - [ ] `POST /users` — create a new user entity
-  - [ ] `GET /users?email=<email>` — retrieve user by email
-- [ ] Add input validation for create requests
-- [ ] Write unit tests for repository and handler layers
+- [x] Define `UserEntity` struct in `internal/model/model.go`
+- [x] Implement `UserRepository` in `internal/repository/user.go`
+  - [x] `Create` method with unique constraint error handling
+  - [x] `GetByEmail` method with not-found handling
+- [x] Implement HTTP handlers in `internal/handler/user.go`
+  - [x] `POST /users` — create a new user entity
+  - [x] `GET /users?email=<email>` — retrieve user by email
+- [x] Add input validation for create requests
+- [x] Write unit tests for repository and handler layers
 
 ## Testing
 
