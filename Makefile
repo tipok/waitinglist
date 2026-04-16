@@ -30,10 +30,13 @@ $(PLATFORMS):
 test:
 	go test ./...
 
-# Lint using golangci-lint in docker
+# Determine container runtime: prefer 'container' if available, fall back to 'docker'
+CONTAINER_RUNTIME := $(shell container system status >/dev/null 2>&1 && echo container || echo docker)
+
+# Lint using golangci-lint in container
 .PHONY: lint
 lint:
-	container run --rm -v $(PWD):/app -w /app golangci/golangci-lint:latest golangci-lint run
+	$(CONTAINER_RUNTIME) run --rm -v $(PWD):/app -w /app golangci/golangci-lint:latest golangci-lint run
 
 # Format code
 .PHONY: format

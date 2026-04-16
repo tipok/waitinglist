@@ -15,6 +15,7 @@ import (
 	"github.com/tipok/waitinglist/internal/model"
 )
 
+//goland:noinspection ALL
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
