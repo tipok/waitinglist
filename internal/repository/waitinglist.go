@@ -56,6 +56,7 @@ func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingList
 	return r.GetWithOffsetLimit(ctx, nil, nil)
 }
 
+//goland:noinspection ALL
 func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, limit *int) ([]model.WaitingListEntry, error) {
 	query := `SELECT id, user_id, created_at
 		FROM waiting_list
