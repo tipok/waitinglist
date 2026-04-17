@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/file"
@@ -10,17 +11,31 @@ import (
 )
 
 const (
-	DefaultPort        = 8080
-	DefaultDatabaseURL = "postgres://localhost:5432/waitinglist?sslmode=disable"
+	DefaultPort                  = 8080
+	DefaultDatabaseURL           = "postgres://localhost:5432/waitinglist?sslmode=disable"
+	DefaultEntryBatchSize        = 25
+	DefaultEntryWindowInterval   = 30 * time.Hour
+	DefaultWaitlistCheckInterval = 1 * time.Hour
 )
 
 type Config struct {
-	Port     int            `koanf:"port"`
-	Database DatabaseConfig `koanf:"database"`
+	Port              int                     `koanf:"port"`
+	Database          DatabaseConfig          `koanf:"database"`
+	Waitlist          WaitlistConfig          `koanf:"waitlist"`
+	SchedulerInterval SchedulerIntervalConfig `koanf:"schedulerInterval"`
 }
 
 type DatabaseConfig struct {
 	URL string `koanf:"url"`
+}
+
+type WaitlistConfig struct {
+	EntryBatchSize      int           `koanf:"entryBatchSize"`
+	EntryWindowInterval time.Duration `koanf:"entryWindowInterval"`
+}
+
+type SchedulerIntervalConfig struct {
+	WaitlistCheckInterval time.Duration `koanf:"waitlistCheckInterval"`
 }
 
 // ParseFlags parses the --config flag from os.Args and returns the config file path.
@@ -53,6 +68,13 @@ func Load(path string) (*Config, error) {
 		Database: DatabaseConfig{
 			URL: DefaultDatabaseURL,
 		},
+		Waitlist: WaitlistConfig{
+			EntryBatchSize:      DefaultEntryBatchSize,
+			EntryWindowInterval: DefaultEntryWindowInterval,
+		},
+		SchedulerInterval: SchedulerIntervalConfig{
+			WaitlistCheckInterval: DefaultWaitlistCheckInterval,
+		},
 	}
 
 	if err := k.Unmarshal("", cfg); err != nil {
@@ -64,6 +86,15 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Database.URL == "" {
 		cfg.Database.URL = DefaultDatabaseURL
+	}
+	if cfg.Waitlist.EntryBatchSize == 0 {
+		cfg.Waitlist.EntryBatchSize = DefaultEntryBatchSize
+	}
+	if cfg.Waitlist.EntryWindowInterval == 0 {
+		cfg.Waitlist.EntryWindowInterval = DefaultEntryWindowInterval
+	}
+	if cfg.SchedulerInterval.WaitlistCheckInterval == 0 {
+		cfg.SchedulerInterval.WaitlistCheckInterval = DefaultWaitlistCheckInterval
 	}
 
 	return cfg, nil

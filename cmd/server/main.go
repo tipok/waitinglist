@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
 	"github.com/tipok/waitinglist/internal/database"
@@ -27,6 +32,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	db, err := database.NewPostgresDB(cfg.Database.URL)
 	if err != nil {
 		logger.Error("Error connecting to database", "error", err)
@@ -48,6 +56,18 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	waitListRepo := repository.NewWaitingListRepository(db)
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
+	ticker := time.NewTicker(cfg.SchedulerInterval.WaitlistCheckInterval)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// do stuff
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 
 	mux := http.NewServeMux()
 	waitListHandler.RegisterRoutes(mux)
@@ -57,8 +77,32 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	logger.Info("Starting server", "addr", addr)
 
-	if err := http.ListenAndServe(addr, wrapped); err != nil {
-		logger.Error("Error starting server", "error", err)
-		os.Exit(1)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: wrapped,
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx
+		},
+	}
+
+	go func() {
+		logger.Info("Server listening on ", "address", addr)
+		if err := srv.ListenAndServe(); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("Server forced to shutdown: ", "error", err)
+			}
+		}
+	}()
+
+	<-ctx.Done()
+
+	stop()
+	logger.Info("shutting down gracefully, press Ctrl+C again to force")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Error("Server forced to shutdown:", "error", err)
+		panic(err)
 	}
 }

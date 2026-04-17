@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func writeTempConfig(t *testing.T, content string) string {
@@ -65,6 +66,13 @@ func TestLoad_ValidFullConfig(t *testing.T) {
 		"port": 9090,
 		"database": {
 			"url": "postgres://myhost:5432/mydb?sslmode=disable"
+		},
+		"waitlist": {
+			"entryBatchSize": 50,
+			"entryWindowInterval": "24h"
+		},
+		"schedulerInterval": {
+			"waitlistCheckInterval": "2h"
 		}
 	}`)
 
@@ -78,6 +86,15 @@ func TestLoad_ValidFullConfig(t *testing.T) {
 	if cfg.Database.URL != "postgres://myhost:5432/mydb?sslmode=disable" {
 		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
 	}
+	if cfg.Waitlist.EntryBatchSize != 50 {
+		t.Errorf("expected entryBatchSize 50, got %d", cfg.Waitlist.EntryBatchSize)
+	}
+	if cfg.Waitlist.EntryWindowInterval != 24*time.Hour {
+		t.Errorf("expected entryWindowInterval 24h, got %s", cfg.Waitlist.EntryWindowInterval)
+	}
+	if cfg.SchedulerInterval.WaitlistCheckInterval != 2*time.Hour {
+		t.Errorf("expected waitlistCheckInterval 2h, got %s", cfg.SchedulerInterval.WaitlistCheckInterval)
+	}
 }
 
 func TestLoad_AllFieldsMapped(t *testing.T) {
@@ -85,6 +102,13 @@ func TestLoad_AllFieldsMapped(t *testing.T) {
 		"port": 3000,
 		"database": {
 			"url": "postgres://testhost:5432/testdb?sslmode=require"
+		},
+		"waitlist": {
+			"entryBatchSize": 10,
+			"entryWindowInterval": "48h"
+		},
+		"schedulerInterval": {
+			"waitlistCheckInterval": "30m"
 		}
 	}`)
 
@@ -97,6 +121,15 @@ func TestLoad_AllFieldsMapped(t *testing.T) {
 	}
 	if cfg.Database.URL != "postgres://testhost:5432/testdb?sslmode=require" {
 		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
+	}
+	if cfg.Waitlist.EntryBatchSize != 10 {
+		t.Errorf("expected entryBatchSize 10, got %d", cfg.Waitlist.EntryBatchSize)
+	}
+	if cfg.Waitlist.EntryWindowInterval != 48*time.Hour {
+		t.Errorf("expected entryWindowInterval 48h, got %s", cfg.Waitlist.EntryWindowInterval)
+	}
+	if cfg.SchedulerInterval.WaitlistCheckInterval != 30*time.Minute {
+		t.Errorf("expected waitlistCheckInterval 30m, got %s", cfg.SchedulerInterval.WaitlistCheckInterval)
 	}
 }
 
@@ -113,6 +146,15 @@ func TestLoad_DefaultsApplied_EmptyObject(t *testing.T) {
 	if cfg.Database.URL != DefaultDatabaseURL {
 		t.Errorf("expected default database URL %s, got %s", DefaultDatabaseURL, cfg.Database.URL)
 	}
+	if cfg.Waitlist.EntryBatchSize != DefaultEntryBatchSize {
+		t.Errorf("expected default entryBatchSize %d, got %d", DefaultEntryBatchSize, cfg.Waitlist.EntryBatchSize)
+	}
+	if cfg.Waitlist.EntryWindowInterval != DefaultEntryWindowInterval {
+		t.Errorf("expected default entryWindowInterval %s, got %s", DefaultEntryWindowInterval, cfg.Waitlist.EntryWindowInterval)
+	}
+	if cfg.SchedulerInterval.WaitlistCheckInterval != DefaultWaitlistCheckInterval {
+		t.Errorf("expected default waitlistCheckInterval %s, got %s", DefaultWaitlistCheckInterval, cfg.SchedulerInterval.WaitlistCheckInterval)
+	}
 }
 
 func TestLoad_PartialConfig_OnlyPort(t *testing.T) {
@@ -127,6 +169,15 @@ func TestLoad_PartialConfig_OnlyPort(t *testing.T) {
 	}
 	if cfg.Database.URL != DefaultDatabaseURL {
 		t.Errorf("expected default database URL, got %s", cfg.Database.URL)
+	}
+	if cfg.Waitlist.EntryBatchSize != DefaultEntryBatchSize {
+		t.Errorf("expected default entryBatchSize, got %d", cfg.Waitlist.EntryBatchSize)
+	}
+	if cfg.Waitlist.EntryWindowInterval != DefaultEntryWindowInterval {
+		t.Errorf("expected default entryWindowInterval, got %s", cfg.Waitlist.EntryWindowInterval)
+	}
+	if cfg.SchedulerInterval.WaitlistCheckInterval != DefaultWaitlistCheckInterval {
+		t.Errorf("expected default waitlistCheckInterval, got %s", cfg.SchedulerInterval.WaitlistCheckInterval)
 	}
 }
 
