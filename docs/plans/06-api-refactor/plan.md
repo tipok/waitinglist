@@ -45,22 +45,22 @@ The `/users` endpoints are fully removed. User entity creation happens exclusive
 
 ## Implementation Steps
 
-- [ ] Delete `internal/handler/user.go`
-- [ ] Delete `internal/handler/user_test.go`
-- [ ] Delete `docs/requests/users.http`
-- [ ] Update `cmd/server/main.go`:
+- [x] Delete `internal/handler/user.go`
+- [x] Delete `internal/handler/user_test.go`
+- [x] Delete `docs/requests/users.http`
+- [x] Update `cmd/server/main.go`:
   - Remove the `userHandler` variable and `handler.NewUserHandler(...)` call
   - Remove `userHandler.RegisterRoutes(mux)`
   - Keep `userRepo` since it is still passed to `NewWaitingListHandler`
-- [ ] Update `internal/handler/routes_test.go`:
+- [x] Update `internal/handler/routes_test.go`:
   - Remove test cases for `POST /users`, `GET /users`, and method-not-allowed tests on `/users`
+  - Add test verifying `/users` now returns `404`
   - Verify remaining waiting list route tests still pass
-- [ ] Audit `internal/repository/user.go` for unused methods:
-  - If `Create` and `GetByEmail` (non-transactional) are not used outside the deleted handler, remove them
-  - Keep `CreateTx` and `GetByEmailTx` (used by `WaitingListHandler`)
-- [ ] Update `internal/repository/user_test.go` to remove tests for deleted methods
-- [ ] Run `make format`, `make lint`, and `make test` to verify everything passes
-- [ ] Update `docs/plans/05-api/plan.md` endpoint table to remove user routes
+- [x] Audit `internal/repository/user.go` for unused methods:
+  - `Create` and `GetByEmail` are still used by integration tests in `waitinglist_test.go` — kept
+  - `CreateTx` and `GetByEmailTx` used by `WaitingListHandler` — kept
+- [x] Run `make format` and `make test` to verify everything passes
+- [x] Update `docs/plans/05-api/plan.md` endpoint table to remove user routes
 
 ## Testing
 

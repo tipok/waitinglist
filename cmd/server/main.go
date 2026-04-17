@@ -46,13 +46,10 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepository(db)
-	userHandler := handler.NewUserHandler(userRepo, logger)
-
 	waitListRepo := repository.NewWaitingListRepository(db)
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
 
 	mux := http.NewServeMux()
-	userHandler.RegisterRoutes(mux)
 	waitListHandler.RegisterRoutes(mux)
 
 	wrapped := handler.LoggingMiddleware(handler.JSONContentType(mux), logger)

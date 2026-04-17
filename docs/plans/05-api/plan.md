@@ -18,10 +18,10 @@ Define and implement the HTTP API layer using Go's built-in `net/http.ServeMux`.
 
 | Method | Path              | Description                        | Request Body                                      | Success Response  |
 |--------|-------------------|------------------------------------|---------------------------------------------------|-------------------|
-| POST   | `/users`          | Create a new user entity           | `{"firstname","lastname","email"}`                | `201 Created`     |
-| GET    | `/users`          | Get user entity by email           | Query param: `?email=<email>`                     | `200 OK`          |
 | POST   | `/waitinglist`    | Add a user to the waiting list     | `{"firstname","lastname","email"}`                | `201 Created`     |
 | GET    | `/waitinglist`    | List all waiting list entries      | —                                                 | `200 OK`          |
+
+> **Note:** `/users` endpoints were removed in [API Refactor (Plan 06)](../06-api-refactor/plan.md). Users are created exclusively via `POST /waitinglist`.
 
 ### Error Response Format
 
@@ -101,12 +101,11 @@ Each handler inspects `r.Method` to dispatch to the correct action (e.g., `GET` 
 ### Unit Tests — Route Registration & Method Dispatching
 
 - **Core logic**:
-  - Test that `POST` requests to `/users` and `/waitinglist` reach the correct handler logic.
-  - Test that `GET` requests to `/users` and `/waitinglist` reach the correct handler logic.
+  - Test that `POST` requests to `/waitinglist` reach the correct handler logic.
+  - Test that `GET` requests to `/waitinglist` reach the correct handler logic.
 - **Error/negative scenarios**:
-  - Test that `DELETE`, `PUT`, `PATCH` on `/users` return `405 Method Not Allowed`.
   - Test that `DELETE`, `PUT`, `PATCH` on `/waitinglist` return `405 Method Not Allowed`.
-  - Test that requests to undefined routes return `404 Not Found`.
+  - Test that requests to undefined routes (including `/users`) return `404 Not Found`.
 
 ## Acceptance Criteria
 
@@ -119,5 +118,5 @@ Each handler inspects `r.Method` to dispatch to the correct action (e.g., `GET` 
 ## Dependencies
 
 - [Project Setup](../01-project-setup/plan.md) — server entry point and mux setup
-- [User Entity](../03-user-entity/plan.md) — user handlers
 - [Waiting List](../04-waiting-list/plan.md) — waiting list handlers
+- [API Refactor](../06-api-refactor/plan.md) — removal of `/users` endpoints

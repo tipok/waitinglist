@@ -1,0 +1,72 @@
+### Add a user to the waiting list
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "John",
+  "lastname": "Doe",
+  "email": "john.doe@example.com"
+}
+
+### Add another user to the waiting list
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "Jane",
+  "lastname": "Smith",
+  "email": "jane.smith@example.com"
+}
+
+### Add a user with duplicate email (expect 409 Conflict)
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "John",
+  "lastname": "Doe",
+  "email": "john.doe@example.com"
+}
+
+### Add a user with missing firstname (expect 400 Bad Request)
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "",
+  "lastname": "Doe",
+  "email": "missing@example.com"
+}
+
+### Add a user with missing lastname (expect 400 Bad Request)
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "John",
+  "lastname": "",
+  "email": "missing@example.com"
+}
+
+### Add a user with missing email (expect 400 Bad Request)
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "John",
+  "lastname": "Doe",
+  "email": ""
+}
+
+### Add a user with invalid email (expect 400 Bad Request)
+POST http://localhost:8080/waitinglist
+Content-Type: application/json
+
+{
+  "firstname": "John",
+  "lastname": "Doe",
+  "email": "not-an-email"
+}
+
+### Get all waiting list entries
+GET http://localhost:8080/waitinglist
