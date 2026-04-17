@@ -53,9 +53,21 @@ func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID s
 
 // GetAll returns all waiting list entries ordered by created_at ascending.
 func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingListEntry, error) {
+	return r.GetWithOffsetLimit(ctx, nil, nil)
+}
+
+func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, limit *int) ([]model.WaitingListEntry, error) {
 	query := `SELECT id, user_id, created_at
 		FROM waiting_list
-		ORDER BY created_at ASC`
+		ORDER BY weighted_created_at ASC`
+
+	if offset != nil {
+		query += fmt.Sprintf(" OFFSET %d", *offset)
+	}
+
+	if limit != nil {
+		query += fmt.Sprintf(" LIMIT %d", *limit)
+	}
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -82,6 +94,33 @@ func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingList
 	}
 
 	return entries, nil
+}
+
+// DeleteByIDs deletes waiting list entries with the given IDs.
+// Returns nil without executing a query if the slice is empty.
+//
+//goland:noinspection ALL
+func (r *WaitingListRepository) DeleteByIDs(ctx context.Context, ids []string) error {
+	return r.DeleteByIDsTx(ctx, r.db, ids)
+}
+
+// DeleteByIDsTx deletes waiting list entries with the given IDs using the given DBTX (transaction or DB).
+// Returns nil without executing a query if the slice is empty.
+//
+//goland:noinspection ALL
+func (r *WaitingListRepository) DeleteByIDsTx(ctx context.Context, tx model.DBTX, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query := `DELETE FROM waiting_list WHERE id = ANY($1)`
+
+	_, err := tx.ExecContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return fmt.Errorf("deleting waiting list entries: %w", err)
+	}
+
+	return nil
 }
 
 // BeginTx starts a new database transaction.

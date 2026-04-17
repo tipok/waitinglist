@@ -16,6 +16,7 @@ import (
 	"github.com/tipok/waitinglist/internal/handler"
 	lg "github.com/tipok/waitinglist/internal/logger"
 	"github.com/tipok/waitinglist/internal/repository"
+	"github.com/tipok/waitinglist/internal/waitlist"
 )
 
 func main() {
@@ -56,18 +57,11 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	waitListRepo := repository.NewWaitingListRepository(db)
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
-	ticker := time.NewTicker(cfg.SchedulerInterval.WaitlistCheckInterval)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				// do stuff
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			}
-		}
-	}()
+	err = waitlist.Start(ctx, cfg, waitListRepo, userRepo)
+	if err != nil {
+		logger.Error("Error starting waitlist", "error", err)
+		os.Exit(1)
+	}
 
 	mux := http.NewServeMux()
 	waitListHandler.RegisterRoutes(mux)

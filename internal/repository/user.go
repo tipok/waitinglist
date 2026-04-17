@@ -79,3 +79,39 @@ func (r *UserRepository) GetByEmailTx(ctx context.Context, tx model.DBTX, email 
 
 	return user, nil
 }
+
+// SetHasAccess sets has_access to true for the users with the given IDs.
+// Returns model.ErrUserNotFound if none of the given IDs match any rows.
+//
+//goland:noinspection ALL
+func (r *UserRepository) SetHasAccess(ctx context.Context, ids []string) error {
+	return r.SetHasAccessTx(ctx, r.db, ids)
+}
+
+// SetHasAccessTx sets has_access to true using the given DBTX (transaction or DB).
+// Returns model.ErrUserNotFound if none of the given IDs match any rows.
+//
+//goland:noinspection ALL
+func (r *UserRepository) SetHasAccessTx(ctx context.Context, tx model.DBTX, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query := `UPDATE user_entity SET has_access = true WHERE id = ANY($1)`
+
+	result, err := tx.ExecContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return fmt.Errorf("updating has_access: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return model.ErrUserNotFound
+	}
+
+	return nil
+}

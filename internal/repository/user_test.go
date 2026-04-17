@@ -239,3 +239,93 @@ func TestCreate_PopulatesAllFields(t *testing.T) {
 		t.Error("expected has_access false")
 	}
 }
+
+func TestSetHasAccess_SingleUser(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{
+		Firstname: "Grant",
+		Lastname:  "Access",
+		Email:     "grant@example.com",
+	}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "grant@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if !found.HasAccess {
+		t.Error("expected has_access to be true")
+	}
+}
+
+func TestSetHasAccess_MultipleUsers(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user1 := &model.UserEntity{
+		Firstname: "User",
+		Lastname:  "One",
+		Email:     "user1@example.com",
+	}
+	user2 := &model.UserEntity{
+		Firstname: "User",
+		Lastname:  "Two",
+		Email:     "user2@example.com",
+	}
+	if err := repo.Create(ctx, user1); err != nil {
+		t.Fatalf("create user1 failed: %v", err)
+	}
+	if err := repo.Create(ctx, user2); err != nil {
+		t.Fatalf("create user2 failed: %v", err)
+	}
+
+	if err := repo.SetHasAccess(ctx, []string{user1.ID, user2.ID}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	found1, err := repo.GetByEmail(ctx, "user1@example.com")
+	if err != nil {
+		t.Fatalf("get user1 failed: %v", err)
+	}
+	if !found1.HasAccess {
+		t.Error("expected user1 has_access to be true")
+	}
+
+	found2, err := repo.GetByEmail(ctx, "user2@example.com")
+	if err != nil {
+		t.Fatalf("get user2 failed: %v", err)
+	}
+	if !found2.HasAccess {
+		t.Error("expected user2 has_access to be true")
+	}
+}
+
+func TestSetHasAccess_EmptySlice(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+
+	err := repo.SetHasAccess(t.Context(), []string{})
+	if err != nil {
+		t.Fatalf("expected no error for empty slice, got %v", err)
+	}
+}
+
+func TestSetHasAccess_UserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+
+	err := repo.SetHasAccess(t.Context(), []string{"00000000-0000-0000-0000-000000000000"})
+	if !errors.Is(err, model.ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}

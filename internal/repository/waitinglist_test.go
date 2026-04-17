@@ -151,3 +151,90 @@ func TestWaitingList_Add_CreatedAtAutoPopulated(t *testing.T) {
 		t.Error("expected created_at to be auto-populated by database default")
 	}
 }
+
+func TestWaitingList_DeleteByIDs_SingleEntry(t *testing.T) {
+	db := setupTestDB(t)
+	userRepo := NewUserRepository(db)
+	wlRepo := NewWaitingListRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Del", Lastname: "One", Email: "del-one@example.com"}
+	if err := userRepo.Create(ctx, user); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	entry, err := wlRepo.Add(ctx, db, user.ID)
+	if err != nil {
+		t.Fatalf("failed to add entry: %v", err)
+	}
+
+	if err := wlRepo.DeleteByIDs(ctx, []string{entry.ID}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	entries, err := wlRepo.GetAll(ctx)
+	if err != nil {
+		t.Fatalf("failed to get all: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries after delete, got %d", len(entries))
+	}
+}
+
+func TestWaitingList_DeleteByIDs_MultipleEntries(t *testing.T) {
+	db := setupTestDB(t)
+	userRepo := NewUserRepository(db)
+	wlRepo := NewWaitingListRepository(db)
+	ctx := t.Context()
+
+	user1 := &model.UserEntity{Firstname: "Del", Lastname: "Multi1", Email: "del-m1@example.com"}
+	user2 := &model.UserEntity{Firstname: "Del", Lastname: "Multi2", Email: "del-m2@example.com"}
+	if err := userRepo.Create(ctx, user1); err != nil {
+		t.Fatalf("failed to create user1: %v", err)
+	}
+	if err := userRepo.Create(ctx, user2); err != nil {
+		t.Fatalf("failed to create user2: %v", err)
+	}
+
+	entry1, err := wlRepo.Add(ctx, db, user1.ID)
+	if err != nil {
+		t.Fatalf("failed to add entry1: %v", err)
+	}
+	entry2, err := wlRepo.Add(ctx, db, user2.ID)
+	if err != nil {
+		t.Fatalf("failed to add entry2: %v", err)
+	}
+
+	if err := wlRepo.DeleteByIDs(ctx, []string{entry1.ID, entry2.ID}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	entries, err := wlRepo.GetAll(ctx)
+	if err != nil {
+		t.Fatalf("failed to get all: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries after delete, got %d", len(entries))
+	}
+}
+
+func TestWaitingList_DeleteByIDs_EmptySlice(t *testing.T) {
+	db := setupTestDB(t)
+	wlRepo := NewWaitingListRepository(db)
+
+	err := wlRepo.DeleteByIDs(t.Context(), []string{})
+	if err != nil {
+		t.Fatalf("expected no error for empty slice, got %v", err)
+	}
+}
+
+func TestWaitingList_DeleteByIDs_NonExistentIDs(t *testing.T) {
+	db := setupTestDB(t)
+	wlRepo := NewWaitingListRepository(db)
+
+	// Deleting non-existent IDs should not return an error.
+	err := wlRepo.DeleteByIDs(t.Context(), []string{"00000000-0000-0000-0000-000000000000"})
+	if err != nil {
+		t.Fatalf("expected no error for non-existent IDs, got %v", err)
+	}
+}
