@@ -18,7 +18,7 @@ func Start(
 	logger := lg.NewLogger()
 
 	checkEntries := func() {
-		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, nil, nil)
+		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, nil, &cfg.Waitlist.EntryBatchSize)
 		if err != nil {
 			logger.Error("failed to get waiting list", "error", err)
 			return
@@ -26,12 +26,17 @@ func Start(
 		usersToAllow := make([]string, 0, len(entries))
 		waitingListIds := make([]string, 0, len(entries))
 		for _, entry := range entries {
-			if time.Since(entry.WeightedCreatedAt) < cfg.SchedulerInterval.WaitlistCheckInterval {
+			if time.Since(entry.WeightedCreatedAt) < cfg.Waitlist.EntryWindowInterval {
 				continue
 			}
 			usersToAllow = append(usersToAllow, entry.UserID)
 			waitingListIds = append(waitingListIds, entry.ID)
 		}
+
+		if len(usersToAllow) == 0 {
+			return
+		}
+
 		err = userRepo.SetHasAccess(ctx, usersToAllow)
 		if err != nil {
 			logger.Error("failed to set has_access", "error", err)

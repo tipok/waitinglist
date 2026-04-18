@@ -84,6 +84,11 @@ add_user "Bob"     "Brown"    "bob@test.local"
 add_user "Charlie" "Clark"    "charlie@test.local"
 add_user "Diana"   "Davis"    "diana@test.local"
 add_user "Eve"     "Evans"    "eve@test.local"
+add_user "Alice1"   "Anderson" "alice1@test.local"
+add_user "Bob1"     "Brown"    "bob1@test.local"
+add_user "Charlie1" "Clark"    "charlie1@test.local"
+add_user "Diana1"   "Davis"    "diana1@test.local"
+add_user "Eve1"     "Evans"    "eve1@test.local"
 
 echo ""
 
