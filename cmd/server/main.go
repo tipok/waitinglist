@@ -56,8 +56,9 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	waitListRepo := repository.NewWaitingListRepository(db)
+	schedulerRepo := repository.NewSchedulerRepository(db)
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
-	err = waitlist.Start(ctx, cfg, waitListRepo, userRepo)
+	err = waitlist.Start(ctx, cfg, waitListRepo, userRepo, schedulerRepo)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
 		os.Exit(1)

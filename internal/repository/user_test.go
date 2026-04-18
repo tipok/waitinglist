@@ -40,7 +40,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 
-	// Clean up user_entity table before each test.
+	// Clean up tables before each test.
 	if _, err := db.Exec("DELETE FROM waiting_list"); err != nil {
 		db.Close()
 		t.Fatalf("failed to clean waiting_list: %v", err)
@@ -48,6 +48,10 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec("DELETE FROM user_entity"); err != nil {
 		db.Close()
 		t.Fatalf("failed to clean user_entity: %v", err)
+	}
+	if _, err := db.Exec("DELETE FROM scheduler_state"); err != nil {
+		db.Close()
+		t.Fatalf("failed to clean scheduler_state: %v", err)
 	}
 
 	t.Cleanup(func() {

@@ -9,15 +9,28 @@ import (
 	"github.com/tipok/waitinglist/internal/repository"
 )
 
+const schedulerKeyWaitlistLastSuccess = "waitlist_last_success"
+
 func Start(
 	ctx context.Context,
 	cfg *config.Config,
 	waitingListRepo *repository.WaitingListRepository,
 	userRepo *repository.UserRepository,
+	schedulerRepo *repository.SchedulerRepository,
 ) error {
 	logger := lg.NewLogger()
 
 	checkEntries := func() {
+		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, schedulerKeyWaitlistLastSuccess)
+		if err != nil {
+			logger.Error("failed to get last success", "error", err)
+			return
+		}
+		if !lastSuccess.IsZero() && time.Since(lastSuccess) < cfg.Waitlist.EntryWindowInterval {
+			logger.Info("entry window interval not elapsed, skipping", "lastSuccess", lastSuccess)
+			return
+		}
+
 		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, nil, &cfg.Waitlist.EntryBatchSize)
 		if err != nil {
 			logger.Error("failed to get waiting list", "error", err)
@@ -47,6 +60,11 @@ func Start(
 		if err != nil {
 			logger.Error("failed to delete waiting list entries", "error", err)
 			return
+		}
+
+		err = schedulerRepo.UpdateLastSuccess(ctx, schedulerRepo.DB(), schedulerKeyWaitlistLastSuccess)
+		if err != nil {
+			logger.Error("failed to update last success", "error", err)
 		}
 	}
 

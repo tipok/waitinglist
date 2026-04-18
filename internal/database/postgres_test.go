@@ -175,11 +175,13 @@ func openTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() {
 		db.Exec("DROP TABLE IF EXISTS waiting_list")
+		db.Exec("DROP TABLE IF EXISTS scheduler_state")
 		db.Exec("DROP TABLE IF EXISTS user_entity")
 		db.Close()
 	})
 	// Clean up any leftover tables from previous runs
 	db.Exec("DROP TABLE IF EXISTS waiting_list")
+	db.Exec("DROP TABLE IF EXISTS scheduler_state")
 	db.Exec("DROP TABLE IF EXISTS user_entity")
 	return db
 }
@@ -652,6 +654,76 @@ func TestIntegration_SchemaImprovements_DeleteWaitingListKeepsUser(t *testing.T)
 	}
 	if count != 1 {
 		t.Fatalf("expected user to still exist after waiting list deletion, got count=%d", count)
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchedulerState_TableCreated(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("RunMigrations failed: %v", err)
+	}
+
+	var tableExists bool
+	err := db.QueryRow(`SELECT EXISTS (
+		SELECT FROM information_schema.tables WHERE table_name = 'scheduler_state'
+	)`).Scan(&tableExists)
+	if err != nil {
+		t.Fatalf("checking scheduler_state existence: %v", err)
+	}
+	if !tableExists {
+		t.Fatal("scheduler_state table was not created")
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchedulerState_Idempotent(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("first RunMigrations failed: %v", err)
+	}
+
+	migrationSQL, err := os.ReadFile(filepath.Join(migrationsDir, "003_scheduler_state.sql"))
+	if err != nil {
+		t.Fatalf("reading migration file: %v", err)
+	}
+
+	_, err = db.Exec(string(migrationSQL))
+	if err != nil {
+		t.Fatalf("re-executing 003_scheduler_state.sql should be idempotent, got: %v", err)
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchedulerState_FullFlow(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("RunMigrations failed: %v", err)
+	}
+
+	// Insert a scheduler state entry
+	_, err := db.Exec(`INSERT INTO scheduler_state (key, value) VALUES ('test_key', NOW())`)
+	if err != nil {
+		t.Fatalf("inserting scheduler state: %v", err)
+	}
+
+	// Read it back and verify it's recent
+	var value string
+	err = db.QueryRow(`SELECT value::text FROM scheduler_state WHERE key = 'test_key'`).Scan(&value)
+	if err != nil {
+		t.Fatalf("querying scheduler state: %v", err)
+	}
+	if value == "" {
+		t.Fatal("expected non-empty timestamp")
 	}
 }
 

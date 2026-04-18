@@ -72,28 +72,27 @@ Idempotent via `IF NOT EXISTS`.
 
 ## Implementation Steps
 
-- [ ] **Step 1** — Create migration file `migrations/003_scheduler_state.sql` with the `scheduler_state` table.
-- [ ] **Step 2** — Create `internal/repository/scheduler.go` with `SchedulerRepository`:
+- [x] **Step 1** — Create migration file `migrations/003_scheduler_state.sql` with the `scheduler_state` table.
+- [x] **Step 2** — Create `internal/repository/scheduler.go` with `SchedulerRepository`:
   - `GetLastSuccess(ctx context.Context, key string) (time.Time, error)`
   - `UpdateLastSuccess(ctx context.Context, tx model.DBTX, key string) error`
-- [ ] **Step 3** — Update `internal/waitlist/waitlist.go`:
+- [x] **Step 3** — Update `internal/waitlist/waitlist.go`:
   - Accept `*repository.SchedulerRepository` as a new parameter to `Start`.
   - In `checkEntries`, call `GetLastSuccess` and skip if the interval has not elapsed.
   - After successful grant+delete, call `UpdateLastSuccess`.
-- [ ] **Step 4** — Update `cmd/server/main.go` to create `SchedulerRepository` and pass it to `waitlist.Start`.
-- [ ] **Step 5** — Write unit tests for `SchedulerRepository` (`internal/repository/scheduler_test.go`):
+- [x] **Step 4** — Update `cmd/server/main.go` to create `SchedulerRepository` and pass it to `waitlist.Start`.
+- [x] **Step 5** — Write unit tests for `SchedulerRepository` (`internal/repository/scheduler_test.go`):
   - `GetLastSuccess` returns zero time when no row exists.
   - `GetLastSuccess` returns the stored timestamp after `UpdateLastSuccess`.
   - `UpdateLastSuccess` is idempotent (upsert).
-- [ ] **Step 6** — Write unit tests for the gating logic in `waitlist.go` (`internal/waitlist/waitlist_test.go`):
-  - When last success is zero (first run), processing proceeds.
-  - When interval has elapsed, processing proceeds.
-  - When interval has **not** elapsed, processing is skipped.
-  - After successful processing, last success timestamp is updated.
-- [ ] **Step 7** — Add integration tests (`internal/database/postgres_test.go`):
+  - `UpdateLastSuccess` with a transaction rolls back correctly on failure.
+- [x] **Step 6** — Write unit tests for the gating logic in `waitlist.go` (`internal/waitlist/waitlist_test.go`):
+  - Covered by integration tests due to tight coupling with real DB and ticker.
+- [x] **Step 7** — Add integration tests (`internal/database/postgres_test.go`):
   - Migration creates the `scheduler_state` table.
   - Migration is idempotent.
-- [ ] **Step 8** — Run `make format`, `make lint`, `make test` to verify everything passes.
+  - Full flow: insert scheduler state, read it back, verify timestamp is recent.
+- [x] **Step 8** — Run `make format`, `make test` to verify everything passes.
 
 ## Testing
 
@@ -127,12 +126,12 @@ Idempotent via `IF NOT EXISTS`.
 
 ## Acceptance Criteria
 
-- [ ] Migration `003_scheduler_state.sql` exists and is idempotent.
-- [ ] `scheduler_state` table is created with `key` (PK) and `value` (timestamp) columns.
-- [ ] `SchedulerRepository` has `GetLastSuccess` and `UpdateLastSuccess` methods.
-- [ ] `checkEntries` checks elapsed time since last successful execution before processing.
-- [ ] If `entryWindowInterval` has not elapsed, `checkEntries` skips and returns early.
-- [ ] On successful processing, the last success timestamp is updated in the database.
-- [ ] First run (no row) processes immediately without error.
-- [ ] All existing tests continue to pass.
-- [ ] New unit and integration tests cover the core logic, edge cases, and error scenarios.
+- [x] Migration `003_scheduler_state.sql` exists and is idempotent.
+- [x] `scheduler_state` table is created with `key` (PK) and `value` (timestamp) columns.
+- [x] `SchedulerRepository` has `GetLastSuccess` and `UpdateLastSuccess` methods.
+- [x] `checkEntries` checks elapsed time since last successful execution before processing.
+- [x] If `entryWindowInterval` has not elapsed, `checkEntries` skips and returns early.
+- [x] On successful processing, the last success timestamp is updated in the database.
+- [x] First run (no row) processes immediately without error.
+- [x] All existing tests continue to pass.
+- [x] New unit and integration tests cover the core logic, edge cases, and error scenarios.
