@@ -58,7 +58,7 @@ func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingList
 
 //goland:noinspection ALL
 func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, limit *int) ([]model.WaitingListEntry, error) {
-	query := `SELECT id, user_id, created_at
+	query := `SELECT id, user_id, created_at, weighted_created_at
 		FROM waiting_list
 		ORDER BY weighted_created_at ASC`
 
@@ -84,7 +84,7 @@ func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, 
 	entries := make([]model.WaitingListEntry, 0)
 	for rows.Next() {
 		var entry model.WaitingListEntry
-		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.CreatedAt, &entry.WeightedCreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning waiting list entry: %w", err)
 		}
 		entries = append(entries, entry)

@@ -93,12 +93,12 @@ No additional indexes are needed — all other query columns are already covered
 All changes go into a new idempotent migration file.
 
 - [x] **Step 1** — Analyse current schema and confirm R1/R2 are already satisfied.
-- [ ] **Step 2** — Create migration file `migrations/002_schema_improvements.sql` containing:
+- [x] **Step 2** — Create migration file `migrations/002_schema_improvements.sql` containing:
   - `ALTER TABLE waiting_list SET (…)` for bloat mitigation (R3).
   - `CREATE INDEX IF NOT EXISTS` for the weighted_created_at column (R4).
-- [ ] **Step 3** — Verify the migration is idempotent (uses `IF NOT EXISTS`, `ALTER TABLE SET` is inherently idempotent).
-- [ ] **Step 4** — Run existing tests (`make test`) to ensure nothing breaks.
-- [ ] **Step 5** — Integration-test the migration against a real PostgreSQL instance (gated by `TEST_DATABASE_URL`).
+- [x] **Step 3** — Verify the migration is idempotent (uses `IF NOT EXISTS`, `ALTER TABLE SET` is inherently idempotent).
+- [x] **Step 4** — Run existing tests (`make test`) to ensure nothing breaks.
+- [x] **Step 5** — Integration-test the migration against a real PostgreSQL instance (gated by `TEST_DATABASE_URL`).
 
 ## Testing
 
@@ -121,9 +121,9 @@ All changes go into a new idempotent migration file.
 
 ## Acceptance Criteria
 
-- [ ] Migration file `002_schema_improvements.sql` exists and is idempotent.
-- [ ] `waiting_list` table has `fillfactor = 70` and aggressive autovacuum settings.
-- [ ] Index `idx_waiting_list_weighted_created_at` exists on `waiting_list.weighted_created_at`.
-- [ ] Cascade delete from `user_entity` to `waiting_list` works (was already working — confirmed).
-- [ ] Deleting from `waiting_list` does not affect `user_entity` (was already the case — confirmed).
-- [ ] All existing tests pass.
+- [x] Migration file `002_schema_improvements.sql` exists and is idempotent.
+- [x] `waiting_list` table has `fillfactor = 70` and aggressive autovacuum settings.
+- [x] Index `idx_waiting_list_weighted_created_at` exists on `waiting_list.weighted_created_at`.
+- [x] Cascade delete from `user_entity` to `waiting_list` works (was already working — confirmed).
+- [x] Deleting from `waiting_list` does not affect `user_entity` (was already the case — confirmed).
+- [x] All existing tests pass.

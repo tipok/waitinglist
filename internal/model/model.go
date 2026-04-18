@@ -42,7 +42,8 @@ type UserEntity struct {
 
 // WaitingListEntry represents an entry in the waiting_list table.
 type WaitingListEntry struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                string    `json:"id"`
+	UserID            string    `json:"user_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	WeightedCreatedAt time.Time `json:"weighted_created_at"`
 }

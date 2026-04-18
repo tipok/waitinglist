@@ -509,6 +509,152 @@ func TestIntegration_CascadeDelete(t *testing.T) {
 	}
 }
 
+//goland:noinspection ALL
+func TestIntegration_SchemaImprovements_IndexExists(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("RunMigrations failed: %v", err)
+	}
+
+	var indexExists bool
+	err := db.QueryRow(`SELECT EXISTS (
+		SELECT 1 FROM pg_indexes
+		WHERE tablename = 'waiting_list'
+		  AND indexname = 'idx_waiting_list_weighted_created_at'
+	)`).Scan(&indexExists)
+	if err != nil {
+		t.Fatalf("checking index existence: %v", err)
+	}
+	if !indexExists {
+		t.Fatal("expected index idx_waiting_list_weighted_created_at to exist")
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchemaImprovements_StorageParameters(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("RunMigrations failed: %v", err)
+	}
+
+	var reloptions []string
+	rows, err := db.Query(`
+		SELECT unnest(reloptions)
+		FROM pg_class
+		WHERE relname = 'waiting_list'
+	`)
+	if err != nil {
+		t.Fatalf("querying reloptions: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var opt string
+		if err := rows.Scan(&opt); err != nil {
+			t.Fatalf("scanning reloption: %v", err)
+		}
+		reloptions = append(reloptions, opt)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterating reloptions: %v", err)
+	}
+
+	expected := []string{
+		"fillfactor=70",
+		"autovacuum_vacuum_scale_factor=0.05",
+		"autovacuum_vacuum_threshold=50",
+		"autovacuum_analyze_scale_factor=0.05",
+		"autovacuum_analyze_threshold=50",
+	}
+
+	for _, exp := range expected {
+		found := false
+		for _, opt := range reloptions {
+			if opt == exp {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected reloption %q not found in %v", exp, reloptions)
+		}
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchemaImprovements_Idempotent(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+
+	// Run migrations twice — second run must not fail
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("first RunMigrations failed: %v", err)
+	}
+
+	// Drop tracking to force re-execution (migrations runner may skip already-applied files)
+	// Re-run the raw SQL to verify idempotency
+	migrationSQL, err := os.ReadFile(filepath.Join(migrationsDir, "002_schema_improvements.sql"))
+	if err != nil {
+		t.Fatalf("reading migration file: %v", err)
+	}
+
+	_, err = db.Exec(string(migrationSQL))
+	if err != nil {
+		t.Fatalf("re-executing 002_schema_improvements.sql should be idempotent, got: %v", err)
+	}
+}
+
+//goland:noinspection ALL
+func TestIntegration_SchemaImprovements_DeleteWaitingListKeepsUser(t *testing.T) {
+	db := openTestDB(t)
+	logger := testLogger()
+
+	migrationsDir := findMigrationsDir(t)
+	if err := RunMigrations(db, migrationsDir, logger); err != nil {
+		t.Fatalf("RunMigrations failed: %v", err)
+	}
+
+	_, err := db.Exec(`INSERT INTO user_entity (firstname, lastname, email) VALUES ('Keep', 'Me', 'keep@example.com')`)
+	if err != nil {
+		t.Fatalf("inserting user: %v", err)
+	}
+
+	var userID string
+	err = db.QueryRow(`SELECT id FROM user_entity WHERE email = 'keep@example.com'`).Scan(&userID)
+	if err != nil {
+		t.Fatalf("querying user id: %v", err)
+	}
+
+	_, err = db.Exec(`INSERT INTO waiting_list (user_id) VALUES ($1)`, userID)
+	if err != nil {
+		t.Fatalf("inserting waiting list entry: %v", err)
+	}
+
+	// Delete the waiting list entry
+	_, err = db.Exec(`DELETE FROM waiting_list WHERE user_id = $1`, userID)
+	if err != nil {
+		t.Fatalf("deleting waiting list entry: %v", err)
+	}
+
+	// User must still exist
+	var count int
+	err = db.QueryRow(`SELECT COUNT(*) FROM user_entity WHERE id = $1`, userID).Scan(&count)
+	if err != nil {
+		t.Fatalf("counting users: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected user to still exist after waiting list deletion, got count=%d", count)
+	}
+}
+
 func findMigrationsDir(t *testing.T) string {
 	t.Helper()
 	// Walk up from the test file to find the project root migrations directory
