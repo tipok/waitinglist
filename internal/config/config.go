@@ -35,6 +35,7 @@ type WaitlistConfig struct {
 }
 
 type SchedulerIntervalConfig struct {
+	Disabled              bool          `koanf:"disabled"`
 	WaitlistCheckInterval time.Duration `koanf:"waitlistCheckInterval"`
 }
 
@@ -73,6 +74,7 @@ func Load(path string) (*Config, error) {
 			EntryWindowInterval: DefaultEntryWindowInterval,
 		},
 		SchedulerInterval: SchedulerIntervalConfig{
+			Disabled:              false,
 			WaitlistCheckInterval: DefaultWaitlistCheckInterval,
 		},
 	}

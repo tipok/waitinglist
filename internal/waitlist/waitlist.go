@@ -20,6 +20,11 @@ func Start(
 ) error {
 	logger := lg.NewLogger()
 
+	if cfg.SchedulerInterval.Disabled {
+		logger.Info("scheduler disabled, skipping")
+		return nil
+	}
+
 	checkEntries := func() {
 		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
