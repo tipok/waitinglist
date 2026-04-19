@@ -46,8 +46,9 @@ func (f *fakeTx) Rollback() error {
 
 // mockWaitingListUserStore is a test double for WaitingListUserStore.
 type mockWaitingListUserStore struct {
-	createTxFn     func(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
-	getByEmailTxFn func(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error)
+	createTxFn            func(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
+	getByEmailTxFn        func(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error)
+	getUserInfoByEmailsFn func(ctx context.Context, emails []string) ([]model.UserInfo, error)
 }
 
 func (m *mockWaitingListUserStore) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
@@ -56,6 +57,13 @@ func (m *mockWaitingListUserStore) CreateTx(ctx context.Context, tx model.DBTX, 
 
 func (m *mockWaitingListUserStore) GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error) {
 	return m.getByEmailTxFn(ctx, tx, email)
+}
+
+func (m *mockWaitingListUserStore) GetUserInfoByEmails(ctx context.Context, emails []string) ([]model.UserInfo, error) {
+	if m.getUserInfoByEmailsFn != nil {
+		return m.getUserInfoByEmailsFn(ctx, emails)
+	}
+	return []model.UserInfo{}, nil
 }
 
 // mockWaitingListStore is a test double for WaitingListStore.
@@ -458,6 +466,173 @@ func TestWaitingList_GetAll_InternalError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", w.Code)
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_Success(t *testing.T) {
+	userStore := &mockWaitingListUserStore{
+		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+			return []model.UserInfo{
+				{
+					Firstname: "Jane",
+					Lastname:  "Doe",
+					Email:     "jane@example.com",
+					HasAccess: false,
+					CreatedAt: time.Date(2026, 4, 10, 14, 30, 0, 0, time.UTC),
+				},
+			}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp model.UserInfoList
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Users) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(resp.Users))
+	}
+	if resp.Users[0].Email != "jane@example.com" {
+		t.Errorf("expected email jane@example.com, got %s", resp.Users[0].Email)
+	}
+	if resp.Users[0].Firstname != "Jane" {
+		t.Errorf("expected firstname Jane, got %s", resp.Users[0].Firstname)
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_MultipleEmails(t *testing.T) {
+	userStore := &mockWaitingListUserStore{
+		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+			return []model.UserInfo{
+				{Firstname: "Jane", Lastname: "Doe", Email: "jane@example.com", HasAccess: false, CreatedAt: time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)},
+				{Firstname: "John", Lastname: "Smith", Email: "john@example.com", HasAccess: true, CreatedAt: time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)},
+			}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com&email=john@example.com", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp model.UserInfoList
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(resp.Users))
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_TrimWhitespace(t *testing.T) {
+	var capturedEmails []string
+	userStore := &mockWaitingListUserStore{
+		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+			capturedEmails = emails
+			return []model.UserInfo{}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=+jane@example.com+", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(capturedEmails) != 1 || capturedEmails[0] != "jane@example.com" {
+		t.Errorf("expected trimmed email, got %v", capturedEmails)
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_NoMatchReturnsEmptyList(t *testing.T) {
+	userStore := &mockWaitingListUserStore{
+		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+			return []model.UserInfo{}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=unknown@example.com", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp model.UserInfoList
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Users) != 0 {
+		t.Errorf("expected empty users list, got %d", len(resp.Users))
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_MissingParam(t *testing.T) {
+	mux := newWaitingListTestHandler(&mockWaitingListUserStore{}, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_InvalidEmail(t *testing.T) {
+	mux := newWaitingListTestHandler(&mockWaitingListUserStore{}, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=invalid", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestWaitingList_GetUsersByEmail_InternalError(t *testing.T) {
+	userStore := &mockWaitingListUserStore{
+		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+			return nil, fmt.Errorf("database connection lost")
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, &mockWaitingListStore{})
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

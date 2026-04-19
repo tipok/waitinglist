@@ -23,6 +23,9 @@ func newFullMux() *http.ServeMux {
 			user.ID = "uuid-1"
 			return nil
 		},
+		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+			return []model.UserInfo{}, nil
+		},
 	}
 	wlStore := &mockWaitingListStore{
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
@@ -99,6 +102,32 @@ func TestRoutes_PATCH_WaitingList_Returns405(t *testing.T) {
 	mux := newFullMux()
 
 	req := httptest.NewRequest(http.MethodPatch, "/waitinglist", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestRoutes_GET_WaitingListUsers_ReachesHandler(t *testing.T) {
+	mux := newFullMux()
+
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=test@example.com", nil)
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRoutes_POST_WaitingListUsers_Returns405(t *testing.T) {
+	mux := newFullMux()
+
+	req := httptest.NewRequest(http.MethodPost, "/waitinglist/users", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
 
 	mux.ServeHTTP(w, req)

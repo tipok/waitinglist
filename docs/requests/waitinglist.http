@@ -70,3 +70,12 @@ Content-Type: application/json
 
 ### Get all waiting list entries
 GET http://localhost:8080/waitinglist
+
+### Get requested users 400, because email is lacking
+GET http://localhost:8080/waitinglist/users
+
+### Get requested users one email
+GET http://localhost:8080/waitinglist/users?email=alice@test.local
+
+### Get requested users multiple emails
+GET http://localhost:8080/waitinglist/users?email=alice@test.local&email=bob@test.local&email=eve1@test.local

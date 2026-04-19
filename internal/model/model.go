@@ -33,11 +33,26 @@ var (
 
 // UserEntity represents a user stored in the user_entity table.
 type UserEntity struct {
-	ID        string `json:"id"`
-	Firstname string `json:"firstname"`
-	Lastname  string `json:"lastname"`
-	Email     string `json:"email"`
-	HasAccess bool   `json:"has_access"`
+	ID        string    `json:"id"`
+	Firstname string    `json:"firstname"`
+	Lastname  string    `json:"lastname"`
+	Email     string    `json:"email"`
+	HasAccess bool      `json:"has_access"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// UserInfo represents user information returned by the lookup endpoint.
+type UserInfo struct {
+	Firstname string    `json:"firstname"`
+	Lastname  string    `json:"lastname"`
+	Email     string    `json:"email"`
+	HasAccess bool      `json:"has_access"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// UserInfoList wraps a slice of UserInfo for JSON serialization.
+type UserInfoList struct {
+	Users []UserInfo `json:"users"`
 }
 
 // WaitingListEntry represents an entry in the waiting_list table.

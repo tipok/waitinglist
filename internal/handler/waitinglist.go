@@ -15,6 +15,7 @@ import (
 type WaitingListUserStore interface {
 	CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
 	GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error)
+	GetUserInfoByEmails(ctx context.Context, emails []string) ([]model.UserInfo, error)
 }
 
 // WaitingListStore defines waiting list persistence operations.
@@ -44,6 +45,7 @@ func NewWaitingListHandler(userStore WaitingListUserStore, waitListStore Waiting
 func (h *WaitingListHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /waitinglist", h.handleAdd)
 	mux.HandleFunc("GET /waitinglist", h.handleGetAll)
+	mux.HandleFunc("GET /waitinglist/users", h.handleGetUsersByEmail)
 }
 
 type addToWaitingListRequest struct {
@@ -136,6 +138,36 @@ func (h *WaitingListHandler) handleGetAll(w http.ResponseWriter, r *http.Request
 	}
 
 	WriteJSON(w, http.StatusOK, entries, h.logger)
+}
+
+func (h *WaitingListHandler) handleGetUsersByEmail(w http.ResponseWriter, r *http.Request) {
+	emails := r.URL.Query()["email"]
+	if len(emails) == 0 {
+		WriteError(w, http.StatusBadRequest, "email query parameter is required", h.logger)
+		return
+	}
+
+	// Validate and trim each email.
+	for i, email := range emails {
+		emails[i] = strings.TrimSpace(email)
+		if emails[i] == "" {
+			WriteError(w, http.StatusBadRequest, "email must not be empty", h.logger)
+			return
+		}
+		if !strings.Contains(emails[i], "@") {
+			WriteError(w, http.StatusBadRequest, "email must contain @", h.logger)
+			return
+		}
+	}
+
+	users, err := h.userStore.GetUserInfoByEmails(r.Context(), emails)
+	if err != nil {
+		h.logger.Error("Failed to get users by email", "error", err)
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, model.UserInfoList{Users: users}, h.logger)
 }
 
 func validateWaitingListRequest(req addToWaitingListRequest) error {

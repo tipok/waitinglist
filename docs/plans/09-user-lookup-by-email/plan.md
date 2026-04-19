@@ -149,18 +149,18 @@ type WaitingListUserStore interface {
 
 ## Implementation Steps
 
-- [ ] Create migration `migrations/004_user_created_at.sql` to add `created_at` to `user_entity`
-- [ ] Update `UserEntity` struct in `internal/model/model.go` to include `CreatedAt`
-- [ ] Add `UserInfo` and `UserInfoList` structs to `internal/model/model.go`
-- [ ] Update existing repository queries that SELECT/INSERT on `user_entity` to include `created_at`
-- [ ] Implement `GetUserInfoByEmails` in `internal/repository/user.go`
-- [ ] Add unit tests for `GetUserInfoByEmails` in `internal/repository/user_test.go`
-- [ ] Update `WaitingListUserStore` interface in `internal/handler/waitinglist.go`
-- [ ] Implement `handleGetUsersByEmail` handler in `internal/handler/waitinglist.go`
-- [ ] Register the `GET /waitinglist/users` route in `RegisterRoutes`
-- [ ] Add unit tests for the handler in `internal/handler/waitinglist_test.go`
-- [ ] Update route registration tests in `internal/handler/routes_test.go`
-- [ ] Run `make format`, `make lint`, and `make test` to verify
+- [x] Create migration `migrations/004_user_created_at.sql` to add `created_at` to `user_entity`
+- [x] Update `UserEntity` struct in `internal/model/model.go` to include `CreatedAt`
+- [x] Add `UserInfo` and `UserInfoList` structs to `internal/model/model.go`
+- [x] Update existing repository queries that SELECT/INSERT on `user_entity` to include `created_at`
+- [x] Implement `GetUserInfoByEmails` in `internal/repository/user.go`
+- [ ] Add unit tests for `GetUserInfoByEmails` in `internal/repository/user_test.go` (gated by `TEST_DATABASE_URL`)
+- [x] Update `WaitingListUserStore` interface in `internal/handler/waitinglist.go`
+- [x] Implement `handleGetUsersByEmail` handler in `internal/handler/waitinglist.go`
+- [x] Register the `GET /waitinglist/users` route in `RegisterRoutes`
+- [x] Add unit tests for the handler in `internal/handler/waitinglist_test.go`
+- [x] Update route registration tests in `internal/handler/routes_test.go`
+- [x] Run `make format`, `make lint`, and `make test` to verify
 
 ## Testing
 
