@@ -1,3 +1,5 @@
+-- noinspection SqlResolveForFile
+
 -- 002_schema_improvements.sql
 -- Mitigate table bloat on waiting_list and add performance indexes.
 
