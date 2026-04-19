@@ -97,9 +97,13 @@ The project includes a `Makefile` with standard targets. After making any code c
 
 ### After Every Code Change
 
+**All three steps are mandatory** — never skip any of them. Every plan's implementation and verification steps must include all three:
+
 1. **Format code** — run `make format` to auto-fix formatting with `goimports`.
 2. **Lint code** — run `make lint` to check for issues using `golangci-lint` (runs via Docker or containers).
 3. **Run tests** — run `make test` to execute the full test suite (`go test ./...`).
+
+> ⚠️ A change is not considered complete until `make format`, `make lint`, and `make test` all pass. Plans must always reference all three commands in their final verification step.
 
 ### Available Makefile Targets
 
