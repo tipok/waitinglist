@@ -61,4 +61,5 @@ type WaitingListEntry struct {
 	UserID            string    `json:"user_id"`
 	CreatedAt         time.Time `json:"created_at"`
 	WeightedCreatedAt time.Time `json:"weighted_created_at"`
+	IPAddress         *string   `json:"ip_address,omitzero"`
 }

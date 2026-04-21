@@ -133,33 +133,33 @@ type WaitingListStore interface {
 
 ### Step 1 — Database Migration
 
-- [ ] Create `migrations/005_waiting_list_ip.sql` adding the `ip_address INET` nullable column.
-- [ ] Verify the migration is idempotent (`IF NOT EXISTS`).
+- [x] Create `migrations/005_waiting_list_ip.sql` adding the `ip_address INET` nullable column.
+- [x] Verify the migration is idempotent (`IF NOT EXISTS`).
 
 ### Step 2 — Model Update
 
-- [ ] Add `IPAddress *string \`json:"ip_address,omitzero"\`` to `model.WaitingListEntry`.
+- [x] Add `IPAddress *string \`json:"ip_address,omitzero"\`` to `model.WaitingListEntry`.
 
 ### Step 3 — IP Extraction Helper
 
-- [ ] Create `internal/handler/ip.go` with the `ClientIP(r *http.Request) string` function.
+- [x] Create `internal/handler/ip.go` with the `ClientIP(r *http.Request) string` function.
 
 ### Step 4 — Repository Update
 
-- [ ] Update `Add` to accept an `ipAddress string` parameter and include it in the `INSERT` statement.
-- [ ] Update the `RETURNING` clause to include `ip_address`.
-- [ ] Update `GetAll` / `GetWithOffsetLimit` to select and scan `ip_address`.
+- [x] Update `Add` to accept an `ipAddress string` parameter and include it in the `INSERT` statement.
+- [x] Update the `RETURNING` clause to include `ip_address`.
+- [x] Update `GetAll` / `GetWithOffsetLimit` to select and scan `ip_address`.
 
 ### Step 5 — Handler & Interface Update
 
-- [ ] Update the `WaitingListStore` interface's `Add` signature to include `ipAddress string`.
-- [ ] In `handleAdd`, call `ClientIP(r)` and pass the result to `Add`.
+- [x] Update the `WaitingListStore` interface's `Add` signature to include `ipAddress string`.
+- [x] In `handleAdd`, call `ClientIP(r)` and pass the result to `Add`.
 
 ### Step 6 — Formatting, Linting, Testing
 
-- [ ] `make format`
-- [ ] `make lint`
-- [ ] `make test`
+- [x] `make format`
+- [x] `make lint`
+- [x] `make test`
 
 ---
 

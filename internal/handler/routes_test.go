@@ -31,7 +31,7 @@ func newFullMux() *http.ServeMux {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, userID string, _ string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{ID: "wl-1", UserID: userID}, nil
 		},
 		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
