@@ -66,6 +66,22 @@ deps:
 	go mod tidy
 	go mod download
 
+# Docker image builds
+IMAGE_NAME ?= $(BINARY_NAME)
+
+.PHONY: docker-build\:amd64
+docker-build\:amd64:
+	$(CONTAINER_RUNTIME) build --build-arg TARGETARCH=amd64 -t $(IMAGE_NAME):latest-amd64 .
+
+.PHONY: docker-build\:arm64
+docker-build\:arm64:
+	$(CONTAINER_RUNTIME) build --build-arg TARGETARCH=arm64 -t $(IMAGE_NAME):latest-arm64 .
+
+.PHONY: docker-build
+docker-build:
+	$(MAKE) 'docker-build:amd64'
+	$(MAKE) 'docker-build:arm64'
+
 # Run the binary
 .PHONY: run
 run: build

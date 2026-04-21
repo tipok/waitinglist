@@ -91,7 +91,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `04-waiting-list` | Not started | Waiting list operations |
 | `05-api` | Not started | HTTP API endpoints |
 | `11-ip-tracking` | Not started | Track client IP address on waiting list entry creation |
-| `12-docker-build` | Not started | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
+| `12-docker-build` | ✅ Complete | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
 
 ## Development Workflow
 
@@ -120,6 +120,9 @@ The project includes a `Makefile` with standard targets. After making any code c
 | `make clean`    | `rm -rf bin/`      | Remove build artifacts.                                            |
 | `make run`      | build + execute    | Build and run the server binary.                                   |
 | `make release`  | cross-compile      | Build release binaries for all supported platforms.                |
+| `make docker-build:amd64` | container/docker build | Build Docker image for `linux/amd64`.                |
+| `make docker-build:arm64` | container/docker build | Build Docker image for `linux/arm64`.                |
+| `make docker-build` | both arch builds   | Build Docker images for both architectures.                        |
 
 ### Prerequisites
 
