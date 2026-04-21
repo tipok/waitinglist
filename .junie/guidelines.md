@@ -90,6 +90,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `03-user-entity` | Not started | User entity CRUD operations |
 | `04-waiting-list` | Not started | Waiting list operations |
 | `05-api` | Not started | HTTP API endpoints |
+| `11-ip-tracking` | Not started | Track client IP address on waiting list entry creation |
 
 ## Development Workflow
 
