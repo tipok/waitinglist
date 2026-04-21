@@ -22,7 +22,7 @@ func TestWaitingList_Add_InsertsEntry(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	entry, err := wlRepo.Add(ctx, db, user.ID, "203.0.113.50")
+	entry, err := wlRepo.Add(ctx, db, user.ID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -35,9 +35,6 @@ func TestWaitingList_Add_InsertsEntry(t *testing.T) {
 	}
 	if entry.CreatedAt.IsZero() {
 		t.Error("expected created_at to be populated")
-	}
-	if entry.IPAddress == nil || *entry.IPAddress != "203.0.113.50" {
-		t.Errorf("expected ip_address 203.0.113.50, got %v", entry.IPAddress)
 	}
 }
 
@@ -56,11 +53,11 @@ func TestWaitingList_Add_DuplicateUserID(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	if _, err := wlRepo.Add(ctx, db, user.ID, "10.0.0.1"); err != nil {
+	if _, err := wlRepo.Add(ctx, db, user.ID); err != nil {
 		t.Fatalf("first add failed: %v", err)
 	}
 
-	_, err := wlRepo.Add(ctx, db, user.ID, "10.0.0.2")
+	_, err := wlRepo.Add(ctx, db, user.ID)
 	if !errors.Is(err, model.ErrAlreadyOnWaitingList) {
 		t.Fatalf("expected ErrAlreadyOnWaitingList, got %v", err)
 	}
@@ -70,7 +67,7 @@ func TestWaitingList_Add_NonExistentUserID(t *testing.T) {
 	db := setupTestDB(t)
 	wlRepo := NewWaitingListRepository(db)
 
-	_, err := wlRepo.Add(t.Context(), db, "00000000-0000-0000-0000-000000000000", "10.0.0.1")
+	_, err := wlRepo.Add(t.Context(), db, "00000000-0000-0000-0000-000000000000")
 	if !errors.Is(err, model.ErrWaitingListForeignKey) {
 		t.Fatalf("expected ErrWaitingListForeignKey, got %v", err)
 	}
@@ -91,10 +88,10 @@ func TestWaitingList_GetAll_ReturnsEntries(t *testing.T) {
 		t.Fatalf("failed to create user2: %v", err)
 	}
 
-	if _, err := wlRepo.Add(ctx, db, user1.ID, "10.0.0.1"); err != nil {
+	if _, err := wlRepo.Add(ctx, db, user1.ID); err != nil {
 		t.Fatalf("failed to add user1: %v", err)
 	}
-	if _, err := wlRepo.Add(ctx, db, user2.ID, "10.0.0.2"); err != nil {
+	if _, err := wlRepo.Add(ctx, db, user2.ID); err != nil {
 		t.Fatalf("failed to add user2: %v", err)
 	}
 
@@ -145,7 +142,7 @@ func TestWaitingList_Add_CreatedAtAutoPopulated(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	entry, err := wlRepo.Add(ctx, db, user.ID, "10.0.0.1")
+	entry, err := wlRepo.Add(ctx, db, user.ID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -166,7 +163,7 @@ func TestWaitingList_DeleteByIDs_SingleEntry(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	entry, err := wlRepo.Add(ctx, db, user.ID, "10.0.0.1")
+	entry, err := wlRepo.Add(ctx, db, user.ID)
 	if err != nil {
 		t.Fatalf("failed to add entry: %v", err)
 	}
@@ -199,11 +196,11 @@ func TestWaitingList_DeleteByIDs_MultipleEntries(t *testing.T) {
 		t.Fatalf("failed to create user2: %v", err)
 	}
 
-	entry1, err := wlRepo.Add(ctx, db, user1.ID, "10.0.0.1")
+	entry1, err := wlRepo.Add(ctx, db, user1.ID)
 	if err != nil {
 		t.Fatalf("failed to add entry1: %v", err)
 	}
-	entry2, err := wlRepo.Add(ctx, db, user2.ID, "10.0.0.2")
+	entry2, err := wlRepo.Add(ctx, db, user2.ID)
 	if err != nil {
 		t.Fatalf("failed to add entry2: %v", err)
 	}

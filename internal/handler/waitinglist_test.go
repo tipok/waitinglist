@@ -68,13 +68,13 @@ func (m *mockWaitingListUserStore) GetUserInfoByEmails(ctx context.Context, emai
 
 // mockWaitingListStore is a test double for WaitingListStore.
 type mockWaitingListStore struct {
-	addFn     func(ctx context.Context, tx model.DBTX, userID string, ipAddress string) (*model.WaitingListEntry, error)
+	addFn     func(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error)
 	getAllFn  func(ctx context.Context) ([]model.WaitingListEntry, error)
 	beginTxFn func(ctx context.Context) (model.Tx, error)
 }
 
-func (m *mockWaitingListStore) Add(ctx context.Context, tx model.DBTX, userID string, ipAddress string) (*model.WaitingListEntry, error) {
-	return m.addFn(ctx, tx, userID, ipAddress)
+func (m *mockWaitingListStore) Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error) {
+	return m.addFn(ctx, tx, userID)
 }
 
 func (m *mockWaitingListStore) GetAll(ctx context.Context) ([]model.WaitingListEntry, error) {
@@ -108,7 +108,7 @@ func TestWaitingList_AddNewUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-uuid-1",
 				UserID:    userID,
@@ -157,7 +157,7 @@ func TestWaitingList_AddExistingUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-uuid-2",
 				UserID:    userID,
@@ -257,7 +257,7 @@ func TestWaitingList_Add_AlreadyOnList(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
 			return nil, model.ErrAlreadyOnWaitingList
 		},
 	}
@@ -358,7 +358,7 @@ func TestWaitingList_Add_ExtraFieldsIgnored(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-extra",
 				UserID:    userID,
@@ -397,7 +397,7 @@ func TestWaitingList_Add_TransactionRollbackOnInsertFailure(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return tx, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
 			return nil, fmt.Errorf("database error")
 		},
 	}
@@ -653,104 +653,5 @@ func TestWaitingList_Add_BeginTxError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", w.Code)
-	}
-}
-
-func TestWaitingList_Add_IPPassedToStore(t *testing.T) {
-	var capturedIP string
-	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
-			return nil, model.ErrUserNotFound
-		},
-		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
-			user.ID = "ip-user-uuid"
-			return nil
-		},
-	}
-	ip := "203.0.113.50"
-	wlStore := &mockWaitingListStore{
-		beginTxFn: func(_ context.Context) (model.Tx, error) {
-			return &fakeTx{}, nil
-		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string, ipAddress string) (*model.WaitingListEntry, error) {
-			capturedIP = ipAddress
-			return &model.WaitingListEntry{
-				ID:        "wl-ip-1",
-				UserID:    "ip-user-uuid",
-				CreatedAt: time.Now(),
-				IPAddress: &ip,
-			}, nil
-		},
-	}
-
-	mux := newWaitingListTestHandler(userStore, wlStore)
-
-	body := `{"firstname":"John","lastname":"Doe","email":"ip@example.com"}`
-	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
-	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
-	}
-	if capturedIP != "203.0.113.50" {
-		t.Errorf("expected IP 203.0.113.50 passed to store, got %s", capturedIP)
-	}
-
-	var resp addToWaitingListResponse
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if resp.WaitingListEntry.IPAddress == nil || *resp.WaitingListEntry.IPAddress != "203.0.113.50" {
-		t.Errorf("expected ip_address in response, got %v", resp.WaitingListEntry.IPAddress)
-	}
-}
-
-func TestWaitingList_GetAll_IncludesIPAddress(t *testing.T) {
-	ip := "198.51.100.10"
-	wlStore := &mockWaitingListStore{
-		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
-			return []model.WaitingListEntry{
-				{
-					ID:        "wl-1",
-					UserID:    "user-1",
-					CreatedAt: time.Now(),
-					IPAddress: &ip,
-				},
-				{
-					ID:        "wl-2",
-					UserID:    "user-2",
-					CreatedAt: time.Now(),
-					IPAddress: nil,
-				},
-			}, nil
-		},
-	}
-
-	mux := newWaitingListTestHandler(&mockWaitingListUserStore{}, wlStore)
-
-	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var entries []model.WaitingListEntry
-	if err := json.NewDecoder(w.Body).Decode(&entries); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(entries))
-	}
-	if entries[0].IPAddress == nil || *entries[0].IPAddress != "198.51.100.10" {
-		t.Errorf("expected first entry ip_address 198.51.100.10, got %v", entries[0].IPAddress)
-	}
-	if entries[1].IPAddress != nil {
-		t.Errorf("expected second entry ip_address nil, got %v", *entries[1].IPAddress)
 	}
 }

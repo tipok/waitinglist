@@ -20,7 +20,7 @@ type WaitingListUserStore interface {
 
 // WaitingListStore defines waiting list persistence operations.
 type WaitingListStore interface {
-	Add(ctx context.Context, tx model.DBTX, userID string, ipAddress string) (*model.WaitingListEntry, error)
+	Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error)
 	GetAll(ctx context.Context) ([]model.WaitingListEntry, error)
 	BeginTx(ctx context.Context) (model.Tx, error)
 }
@@ -106,8 +106,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add user to the waiting list.
-	clientIP := ClientIP(r)
-	entry, err := h.waitListStore.Add(ctx, tx, user.ID, clientIP)
+	entry, err := h.waitListStore.Add(ctx, tx, user.ID)
 	if err != nil {
 		if errors.Is(err, model.ErrAlreadyOnWaitingList) {
 			WriteError(w, http.StatusConflict, "user is already on the waiting list", h.logger)

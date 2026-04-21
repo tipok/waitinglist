@@ -27,14 +27,14 @@ func NewWaitingListRepository(db *sql.DB) *WaitingListRepository {
 // Returns model.ErrWaitingListForeignKey if the user ID does not exist.
 //
 //goland:noinspection ALL
-func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID string, ipAddress string) (*model.WaitingListEntry, error) {
-	query := `INSERT INTO waiting_list (user_id, ip_address)
-		VALUES ($1, $2::inet)
-		RETURNING id, user_id, created_at, ip_address`
+func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error) {
+	query := `INSERT INTO waiting_list (user_id)
+		VALUES ($1)
+		RETURNING id, user_id, created_at`
 
 	entry := &model.WaitingListEntry{}
-	err := tx.QueryRowContext(ctx, query, userID, ipAddress).
-		Scan(&entry.ID, &entry.UserID, &entry.CreatedAt, &entry.IPAddress)
+	err := tx.QueryRowContext(ctx, query, userID).
+		Scan(&entry.ID, &entry.UserID, &entry.CreatedAt)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) {
@@ -58,7 +58,7 @@ func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingList
 
 //goland:noinspection ALL
 func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, limit *int) ([]model.WaitingListEntry, error) {
-	query := `SELECT id, user_id, created_at, weighted_created_at, ip_address
+	query := `SELECT id, user_id, created_at, weighted_created_at
 		FROM waiting_list
 		ORDER BY weighted_created_at ASC`
 
@@ -84,7 +84,7 @@ func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, 
 	entries := make([]model.WaitingListEntry, 0)
 	for rows.Next() {
 		var entry model.WaitingListEntry
-		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.CreatedAt, &entry.WeightedCreatedAt, &entry.IPAddress); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.CreatedAt, &entry.WeightedCreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning waiting list entry: %w", err)
 		}
 		entries = append(entries, entry)
