@@ -636,6 +636,91 @@ func TestWaitingList_GetUsersByEmail_InternalError(t *testing.T) {
 	}
 }
 
+func TestWaitingList_Add_IPSetOnNewUser(t *testing.T) {
+	var capturedIP *string
+	userStore := &mockWaitingListUserStore{
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+			return nil, model.ErrUserNotFound
+		},
+		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
+			capturedIP = user.IPAddress
+			user.ID = "new-uuid"
+			return nil
+		},
+	}
+	wlStore := &mockWaitingListStore{
+		beginTxFn: func(_ context.Context) (model.Tx, error) {
+			return &fakeTx{}, nil
+		},
+		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+			return &model.WaitingListEntry{ID: "wl-1", UserID: userID, CreatedAt: time.Now()}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, wlStore)
+
+	body := `{"firstname":"John","lastname":"Doe","email":"ip@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
+	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if capturedIP == nil {
+		t.Fatal("expected IPAddress to be set, got nil")
+	}
+	if *capturedIP != "203.0.113.50" {
+		t.Errorf("expected IP 203.0.113.50, got %s", *capturedIP)
+	}
+}
+
+func TestWaitingList_Add_IPNotSetOnExistingUser(t *testing.T) {
+	userStore := &mockWaitingListUserStore{
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+			return &model.UserEntity{
+				ID:        "existing-uuid",
+				Firstname: "Jane",
+				Lastname:  "Doe",
+				Email:     "jane@example.com",
+				HasAccess: false,
+				IPAddress: nil,
+			}, nil
+		},
+	}
+	wlStore := &mockWaitingListStore{
+		beginTxFn: func(_ context.Context) (model.Tx, error) {
+			return &fakeTx{}, nil
+		},
+		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+			return &model.WaitingListEntry{ID: "wl-2", UserID: userID, CreatedAt: time.Now()}, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, wlStore)
+
+	body := `{"firstname":"Jane","lastname":"Doe","email":"jane@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
+	req.Header.Set("X-Forwarded-For", "203.0.113.99")
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp addToWaitingListResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.User.IPAddress != nil {
+		t.Errorf("expected nil IPAddress for existing user, got %v", *resp.User.IPAddress)
+	}
+}
+
 func TestWaitingList_Add_BeginTxError(t *testing.T) {
 	wlStore := &mockWaitingListStore{
 		beginTxFn: func(_ context.Context) (model.Tx, error) {

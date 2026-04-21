@@ -34,11 +34,11 @@ func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) err
 //
 //goland:noinspection ALL
 func (r *UserRepository) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
-	query := `INSERT INTO user_entity (firstname, lastname, email)
-		VALUES ($1, $2, $3)
+	query := `INSERT INTO user_entity (firstname, lastname, email, ip_address)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, has_access, created_at`
 
-	err := tx.QueryRowContext(ctx, query, user.Firstname, user.Lastname, user.Email).
+	err := tx.QueryRowContext(ctx, query, user.Firstname, user.Lastname, user.Email, user.IPAddress).
 		Scan(&user.ID, &user.HasAccess, &user.CreatedAt)
 	if err != nil {
 		var pqErr *pq.Error
@@ -63,13 +63,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 //
 //goland:noinspection ALL
 func (r *UserRepository) GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error) {
-	query := `SELECT id, firstname, lastname, email, has_access, created_at
+	query := `SELECT id, firstname, lastname, email, has_access, created_at, ip_address
 		FROM user_entity
 		WHERE email = $1`
 
 	user := &model.UserEntity{}
 	err := tx.QueryRowContext(ctx, query, email).
-		Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email, &user.HasAccess, &user.CreatedAt)
+		Scan(&user.ID, &user.Firstname, &user.Lastname, &user.Email, &user.HasAccess, &user.CreatedAt, &user.IPAddress)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound

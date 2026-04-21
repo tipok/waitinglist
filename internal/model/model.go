@@ -39,6 +39,7 @@ type UserEntity struct {
 	Email     string    `json:"email"`
 	HasAccess bool      `json:"has_access"`
 	CreatedAt time.Time `json:"created_at"`
+	IPAddress *string   `json:"ip_address,omitzero"`
 }
 
 // UserInfo represents user information returned by the lookup endpoint.

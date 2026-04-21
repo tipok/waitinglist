@@ -93,10 +93,12 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// User does not exist — create a new one.
+		ip := ClientIP(r)
 		user = &model.UserEntity{
 			Firstname: req.Firstname,
 			Lastname:  req.Lastname,
 			Email:     req.Email,
+			IPAddress: &ip,
 		}
 		if err := h.userStore.CreateTx(ctx, tx, user); err != nil {
 			h.logger.Error("Failed to create user", "error", err)
