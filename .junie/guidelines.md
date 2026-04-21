@@ -91,6 +91,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `04-waiting-list` | Not started | Waiting list operations |
 | `05-api` | Not started | HTTP API endpoints |
 | `11-ip-tracking` | Not started | Track client IP address on waiting list entry creation |
+| `12-docker-build` | Not started | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
 
 ## Development Workflow
 
