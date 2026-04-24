@@ -1,12 +1,12 @@
 # Stage 1 — Builder
+ARG TARGETARCH=arm64
 FROM golang:1.25 AS builder
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
     go build -a -gcflags=all="-l -B" -ldflags="-w -s" \
     -o /out/waitinglist cmd/server/main.go
 
