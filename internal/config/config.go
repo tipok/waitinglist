@@ -26,7 +26,9 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-	URL string `koanf:"url"`
+	URL      string `koanf:"url"`
+	Username string `koanf:"username"`
+	Password string `koanf:"password"`
 }
 
 type WaitlistConfig struct {

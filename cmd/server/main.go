@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"time"
@@ -36,7 +37,16 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	db, err := database.NewPostgresDB(cfg.Database.URL)
+	dbUrl, err := url.Parse(cfg.Database.URL)
+	if err != nil {
+		logger.Error("Error parsing database URL", "error", err)
+		os.Exit(1)
+	}
+
+	if dbUrl.User == nil {
+		dbUrl.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
+	}
+	db, err := database.NewPostgresDB(dbUrl.String())
 	if err != nil {
 		logger.Error("Error connecting to database", "error", err)
 		os.Exit(1)
