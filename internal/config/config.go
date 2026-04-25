@@ -3,9 +3,11 @@ package config
 import (
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 )
@@ -62,8 +64,12 @@ func ParseFlags(args []string) (string, error) {
 func Load(path string) (*Config, error) {
 	k := koanf.New(".")
 
-	if err := k.Load(file.Provider(path), json.Parser()); err != nil {
+	if err := loadFileConfig(path, k); err != nil {
 		return nil, fmt.Errorf("loading config file: %w", err)
+	}
+
+	if err := loadEnvConfig(k); err != nil {
+		return nil, fmt.Errorf("loading environment variables: %w", err)
 	}
 
 	cfg := &Config{
@@ -102,4 +108,22 @@ func Load(path string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func loadFileConfig(path string, k *koanf.Koanf) error {
+	return k.Load(file.Provider(path), json.Parser())
+}
+
+func loadEnvConfig(k *koanf.Koanf) error {
+	return k.Load(env.Provider(".", env.Opt{
+		Prefix: "WL_",
+		TransformFunc: func(k, v string) (string, any) {
+			k = strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(k, "WL_")), "_", ".")
+			if strings.Contains(v, " ") {
+				return k, strings.Split(v, " ")
+			}
+
+			return k, v
+		},
+	}), nil)
 }
