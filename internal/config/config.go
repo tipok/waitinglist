@@ -15,6 +15,7 @@ import (
 const (
 	DefaultPort                  = 8080
 	DefaultDatabaseURL           = "postgres://localhost:5432/waitinglist?sslmode=disable"
+	DefaultMigrationsDir         = "migrations"
 	DefaultEntryBatchSize        = 25
 	DefaultEntryWindowInterval   = 30 * time.Hour
 	DefaultWaitlistCheckInterval = 1 * time.Hour
@@ -28,9 +29,10 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-	URL      string `koanf:"url"`
-	Username string `koanf:"username"`
-	Password string `koanf:"password"`
+	URL           string `koanf:"url"`
+	Username      string `koanf:"username"`
+	Password      string `koanf:"password"`
+	MigrationsDir string `koanf:"migrationsDir"`
 }
 
 type WaitlistConfig struct {
@@ -75,7 +77,8 @@ func Load(path string) (*Config, error) {
 	cfg := &Config{
 		Port: DefaultPort,
 		Database: DatabaseConfig{
-			URL: DefaultDatabaseURL,
+			URL:           DefaultDatabaseURL,
+			MigrationsDir: DefaultMigrationsDir,
 		},
 		Waitlist: WaitlistConfig{
 			EntryBatchSize:      DefaultEntryBatchSize,
@@ -96,6 +99,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Database.URL == "" {
 		cfg.Database.URL = DefaultDatabaseURL
+	}
+	if cfg.Database.MigrationsDir == "" {
+		cfg.Database.MigrationsDir = DefaultMigrationsDir
 	}
 	if cfg.Waitlist.EntryBatchSize == 0 {
 		cfg.Waitlist.EntryBatchSize = DefaultEntryBatchSize

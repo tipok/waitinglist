@@ -65,7 +65,8 @@ func TestLoad_ValidFullConfig(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"port": 9090,
 		"database": {
-			"url": "postgres://myhost:5432/mydb?sslmode=disable"
+			"url": "postgres://myhost:5432/mydb?sslmode=disable",
+			"migrationsDir": "/migrations"
 		},
 		"waitlist": {
 			"entryBatchSize": 50,
@@ -85,6 +86,9 @@ func TestLoad_ValidFullConfig(t *testing.T) {
 	}
 	if cfg.Database.URL != "postgres://myhost:5432/mydb?sslmode=disable" {
 		t.Errorf("unexpected database URL: %s", cfg.Database.URL)
+	}
+	if cfg.Database.MigrationsDir != "/migrations" {
+		t.Errorf("expected migrationsDir /migrations, got %s", cfg.Database.MigrationsDir)
 	}
 	if cfg.Waitlist.EntryBatchSize != 50 {
 		t.Errorf("expected entryBatchSize 50, got %d", cfg.Waitlist.EntryBatchSize)
@@ -145,6 +149,9 @@ func TestLoad_DefaultsApplied_EmptyObject(t *testing.T) {
 	}
 	if cfg.Database.URL != DefaultDatabaseURL {
 		t.Errorf("expected default database URL %s, got %s", DefaultDatabaseURL, cfg.Database.URL)
+	}
+	if cfg.Database.MigrationsDir != DefaultMigrationsDir {
+		t.Errorf("expected default migrationsDir %s, got %s", DefaultMigrationsDir, cfg.Database.MigrationsDir)
 	}
 	if cfg.Waitlist.EntryBatchSize != DefaultEntryBatchSize {
 		t.Errorf("expected default entryBatchSize %d, got %d", DefaultEntryBatchSize, cfg.Waitlist.EntryBatchSize)

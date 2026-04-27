@@ -1,6 +1,0 @@
-{
-  "port": 8080,
-  "database": {
-    "url": "postgres://localhost:5432/waitinglist?sslmode=disable"
-  }
-}

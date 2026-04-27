@@ -14,6 +14,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 FROM gcr.io/distroless/base-debian13:nonroot
 COPY --from=builder /out/waitinglist /waitinglist
 COPY migrations/ /migrations/
-COPY config.json /config.json
 ENTRYPOINT ["/waitinglist"]
 CMD ["--config", "/config.json"]

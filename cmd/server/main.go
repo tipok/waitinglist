@@ -59,7 +59,7 @@ func main() {
 		}
 	}(db)
 
-	if err := database.RunMigrations(db, "migrations", logger); err != nil {
+	if err := database.RunMigrations(db, cfg.Database.MigrationsDir, logger); err != nil {
 		logger.Error("Error running migrations", "error", err)
 		os.Exit(1)
 	}
