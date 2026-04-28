@@ -120,13 +120,18 @@ The first push creates the GHCR package as private by default. To make the packa
 
 ## Implementation Steps
 
-1. **Create `.github/workflows/docker.yml`** with the two parallel jobs (`build-amd64`, `build-arm64`) following the skeleton in the Design section. Pin third-party actions to the same commit SHAs used in the example.
-2. **Verify Dockerfile platform handling** — build locally with `docker buildx build --platform=linux/amd64 .` and `--platform=linux/arm64 .` to confirm the existing `ARG TARGETARCH=arm64` default does not override BuildKit's auto-set value during multi-platform builds. Adjust the Dockerfile if necessary.
-3. **Confirm `.dockerignore`** still excludes `bin/`, `.git/`, etc., so the build context uploaded to the GitHub runner stays small.
-4. **Update `CLAUDE.md`** — add a row to the *Current Plans* table for `13-github-docker-workflow`.
-5. **Open a PR** to exercise the PR path: the workflow should build both architectures but skip the registry login and the push step.
-6. **Merge to `main`** and confirm the push path: images appear at `ghcr.io/<owner>/waitinglist:latest-amd64` and `ghcr.io/<owner>/waitinglist:latest-arm64`.
-7. **Push a semver tag** (e.g., `v0.1.0`) and confirm semver-derived tags (`v0.1.0-amd64`, `0.1-amd64`, etc.) are published.
+1. ✅ **Create `.github/workflows/docker.yml`** with the two parallel jobs (`build-amd64`, `build-arm64`) following the skeleton in the Design section. Pin third-party actions to the same commit SHAs used in the example.
+2. ✅ **Verify Dockerfile platform handling** — verified by inspection: the pre-FROM `ARG TARGETARCH=arm64` only defaults FROM-line interpolation (which the Dockerfile does not use); the in-stage `ARG TARGETARCH` after `FROM` picks up BuildKit's auto-set value when `--platform=linux/<arch>` is supplied. No Dockerfile change required.
+3. ✅ **Confirm `.dockerignore`** still excludes `bin/`, `.git/`, etc., so the build context uploaded to the GitHub runner stays small. (Confirmed unchanged from Plan 12.)
+4. ✅ **Update `CLAUDE.md`** — added a row to the *Current Plans* table for `13-github-docker-workflow`.
+5. **Open a PR** to exercise the PR path: the workflow should build both architectures but skip the registry login and the push step. *(Pending — exercised when the next PR lands.)*
+6. **Merge to `main`** and confirm the push path: images appear at `ghcr.io/<owner>/waitinglist:latest-amd64` and `ghcr.io/<owner>/waitinglist:latest-arm64`. *(Pending merge.)*
+7. **Push a semver tag** (e.g., `v0.1.0`) and confirm semver-derived tags (`v0.1.0-amd64`, `0.1-amd64`, etc.) are published. *(Pending first release.)*
+
+### Deviations / notes from implementation
+
+- The `flavor` input on `docker/metadata-action` was set to `suffix=-<arch>,onlatest=true` so that the auto-generated `latest` tag also receives the architecture suffix; without `onlatest=true`, both jobs would race to push an unsuffixed `latest` tag.
+- `actions/checkout@v3` is invoked without the example's `lfs: 'true'` and `submodules: 'recursive'` inputs because this repo uses neither LFS nor submodules; the inputs were dead weight that triggered extra fetch work.
 
 ## Testing
 

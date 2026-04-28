@@ -92,7 +92,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `05-api` | Not started | HTTP API endpoints |
 | `11-ip-tracking` | Not started | Track client IP address on waiting list entry creation |
 | `12-docker-build` | ✅ Complete | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
-| `13-github-docker-workflow` | Not started | GitHub Actions workflow building and pushing Docker images to ghcr.io |
+| `13-github-docker-workflow` | ✅ Complete | GitHub Actions workflow building and pushing Docker images to ghcr.io |
 
 ## Development Workflow
 
