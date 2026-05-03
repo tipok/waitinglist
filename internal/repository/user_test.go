@@ -347,6 +347,7 @@ func TestHasAccessOneWayTrigger_RejectsTrueToFalse(t *testing.T) {
 		t.Fatalf("set has_access failed: %v", err)
 	}
 
+	//goland:noinspection ALL
 	_, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = false WHERE id = $1", user.ID)
 	if err == nil {
 		t.Fatal("expected trigger to reject has_access true → false update")
@@ -395,7 +396,8 @@ func TestHasAccessOneWayTrigger_AllowsUnrelatedUpdate(t *testing.T) {
 		t.Fatalf("set has_access failed: %v", err)
 	}
 
-	if _, err := db.ExecContext(ctx, "UPDATE user_entity SET firstname = 'Renamed' WHERE id = $1", user.ID); err != nil {
+	if //goland:noinspection ALL
+	_, err := db.ExecContext(ctx, "UPDATE user_entity SET firstname = 'Renamed' WHERE id = $1", user.ID); err != nil {
 		t.Fatalf("expected unrelated UPDATE to succeed, got %v", err)
 	}
 
@@ -424,7 +426,8 @@ func TestHasAccessOneWayTrigger_AllowsTrueToTrueNoOp(t *testing.T) {
 		t.Fatalf("first set has_access failed: %v", err)
 	}
 
-	if _, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = true WHERE id = $1", user.ID); err != nil {
+	if //goland:noinspection ALL
+	_, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = true WHERE id = $1", user.ID); err != nil {
 		t.Fatalf("expected true → true UPDATE to succeed, got %v", err)
 	}
 }
