@@ -105,6 +105,14 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 			return
 		}
+	} else if user.HasAccess {
+		// User already has access — no need to (re-)enqueue. Tell the client to
+		// reset its sign-up form and route the user to the protected page.
+		h.logger.Info("user already has access; skipping waiting list add", "user_id", user.ID)
+		WriteJSON(w, http.StatusResetContent, map[string]string{
+			"message": model.ErrAlreadyHasAccess.Error(),
+		}, h.logger)
+		return
 	}
 
 	// Add user to the waiting list.

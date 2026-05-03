@@ -29,6 +29,7 @@ var (
 	ErrUserNotFound          = errors.New("user not found")
 	ErrAlreadyOnWaitingList  = errors.New("user is already on the waiting list")
 	ErrWaitingListForeignKey = errors.New("user does not exist")
+	ErrAlreadyHasAccess      = errors.New("user already has access")
 )
 
 // UserEntity represents a user stored in the user_entity table.

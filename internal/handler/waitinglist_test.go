@@ -721,6 +721,64 @@ func TestWaitingList_Add_IPNotSetOnExistingUser(t *testing.T) {
 	}
 }
 
+func TestWaitingList_Add_AlreadyHasAccessReturns205(t *testing.T) {
+	addCalled := false
+	tx := &fakeTx{}
+	userStore := &mockWaitingListUserStore{
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+			return &model.UserEntity{
+				ID:        "granted-uuid",
+				Firstname: "Jane",
+				Lastname:  "Doe",
+				Email:     "granted@example.com",
+				HasAccess: true,
+			}, nil
+		},
+		createTxFn: func(_ context.Context, _ model.DBTX, _ *model.UserEntity) error {
+			t.Fatal("CreateTx must not be called when user already has access")
+			return nil
+		},
+	}
+	wlStore := &mockWaitingListStore{
+		beginTxFn: func(_ context.Context) (model.Tx, error) {
+			return tx, nil
+		},
+		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
+			addCalled = true
+			return nil, nil
+		},
+	}
+
+	mux := newWaitingListTestHandler(userStore, wlStore)
+
+	body := `{"firstname":"Jane","lastname":"Doe","email":"granted@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusResetContent {
+		t.Fatalf("expected status 205, got %d: %s", w.Code, w.Body.String())
+	}
+	if addCalled {
+		t.Error("waiting list Add must not be called when user already has access")
+	}
+	if tx.committed {
+		t.Error("transaction must not be committed on the 205 short-circuit path")
+	}
+	if !tx.rolledBack {
+		t.Error("transaction must be rolled back via defer on the 205 short-circuit path")
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["message"] != model.ErrAlreadyHasAccess.Error() {
+		t.Errorf("expected message %q, got %q", model.ErrAlreadyHasAccess.Error(), resp["message"])
+	}
+}
+
 func TestWaitingList_Add_BeginTxError(t *testing.T) {
 	wlStore := &mockWaitingListStore{
 		beginTxFn: func(_ context.Context) (model.Tx, error) {

@@ -128,6 +128,10 @@ func (r *UserRepository) SetHasAccess(ctx context.Context, ids []string) error {
 // SetHasAccessTx sets has_access to true using the given DBTX (transaction or DB).
 // Returns model.ErrUserNotFound if none of the given IDs match any rows.
 //
+// has_access is a one-way flag — once true it must never be set back to false.
+// Migration 006_has_access_one_way.sql installs a database trigger that
+// enforces this invariant.
+//
 //goland:noinspection ALL
 func (r *UserRepository) SetHasAccessTx(ctx context.Context, tx model.DBTX, ids []string) error {
 	if len(ids) == 0 {

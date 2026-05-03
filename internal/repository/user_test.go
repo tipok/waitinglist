@@ -333,3 +333,98 @@ func TestSetHasAccess_UserNotFound(t *testing.T) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
+
+func TestHasAccessOneWayTrigger_RejectsTrueToFalse(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "One", Lastname: "Way", Email: "oneway@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+		t.Fatalf("set has_access failed: %v", err)
+	}
+
+	_, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = false WHERE id = $1", user.ID)
+	if err == nil {
+		t.Fatal("expected trigger to reject has_access true → false update")
+	}
+	if !strings.Contains(err.Error(), "has_access is one-way") {
+		t.Errorf("expected error to mention 'has_access is one-way', got %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "oneway@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if !found.HasAccess {
+		t.Error("expected has_access to remain true after blocked update")
+	}
+}
+
+func TestHasAccessOneWayTrigger_AllowsFalseToTrue(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "F2T", Lastname: "User", Email: "f2t@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if user.HasAccess {
+		t.Fatal("expected default has_access false")
+	}
+
+	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+		t.Fatalf("expected false → true update to succeed, got %v", err)
+	}
+}
+
+func TestHasAccessOneWayTrigger_AllowsUnrelatedUpdate(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Stay", Lastname: "Granted", Email: "stay@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+		t.Fatalf("set has_access failed: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, "UPDATE user_entity SET firstname = 'Renamed' WHERE id = $1", user.ID); err != nil {
+		t.Fatalf("expected unrelated UPDATE to succeed, got %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "stay@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if found.Firstname != "Renamed" {
+		t.Errorf("expected firstname Renamed, got %s", found.Firstname)
+	}
+	if !found.HasAccess {
+		t.Error("expected has_access to remain true")
+	}
+}
+
+func TestHasAccessOneWayTrigger_AllowsTrueToTrueNoOp(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "True", Lastname: "Twice", Email: "twice@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+		t.Fatalf("first set has_access failed: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = true WHERE id = $1", user.ID); err != nil {
+		t.Fatalf("expected true → true UPDATE to succeed, got %v", err)
+	}
+}
