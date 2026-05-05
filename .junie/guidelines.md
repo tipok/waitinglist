@@ -88,6 +88,12 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `GET`  | `/waitinglist` | List all waiting list entries. |
 | `GET`  | `/waitinglist/users` | Look up users by email (`?email=`). Supports ETag caching. |
 | `GET`  | `/healthz` | Health probe. Pings the database with a 2 s timeout. `200` healthy, `503` unhealthy. Excluded from `LoggingMiddleware` to avoid probe-spam. |
+| `GET`  | `/admin/dashboard` | **Admin · Basic Auth.** Counters + per-day enlistment series (`?days=N`, default 90, max 365). |
+| `GET`  | `/admin/users/access` | **Admin · Basic Auth.** Users with access; supports `?email=` substring filter, `?limit=` (max 200), `?offset=`. |
+| `GET`  | `/admin/users/waitlist` | **Admin · Basic Auth.** Joined waitlist view including `weight`; same filter/pagination semantics. |
+| `POST` | `/admin/users/{id}/grant-access` | **Admin · Basic Auth.** Admin-grants access (atomic with waitlist removal); returns the updated user. |
+| `POST` | `/admin/users/{id}/revoke-access` | **Admin · Basic Auth.** Body `{"reason":"…"}` (1..500 chars). Calls `RevokeAccess` with the authenticated admin as `revoked_by`. |
+| `DELETE` | `/admin/waitlist/{id}` | **Admin · Basic Auth.** Removes a single waiting-list row by entry id. |
 
 ## Plan Management
 
@@ -117,7 +123,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `14-already-has-access-response` | ✅ Complete | Return HTTP 205 on re-signup when user already has access; enforce one-way `has_access` invariant in DB |
 | `15-health-check` | ✅ Complete | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
 | `16-access-audit-and-revocation` | ✅ Complete | Audit columns (`access_granted_at/by`, `access_revoked_at/by/reason`); drop one-way trigger; `GrantAccessTx`/`RevokeAccessTx` |
-| `17-admin-api-and-auth` | Not started | `/admin/*` JSON endpoints (dashboard, list, grant, revoke, delete) protected by configurable Basic Auth |
+| `17-admin-api-and-auth` | ✅ Complete | `/admin/*` JSON endpoints (dashboard, list, grant, revoke, delete) protected by configurable Basic Auth |
 | `18-admin-web-ui` | Not started | Embedded HTML/JS admin page with dashboard, searchable lists, and revoke/grant/delete actions |
 
 ## Development Workflow

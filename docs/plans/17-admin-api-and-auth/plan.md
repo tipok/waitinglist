@@ -1,5 +1,26 @@
 # 17 — Admin API & Basic Auth
 
+> **Status:** ✅ Complete. Resolved Open Questions:
+> - **Q1 (bcrypt vs plain-text):** bcrypt, via `golang.org/x/crypto/bcrypt`.
+> - **Q2 (missing creds):** warn + disable `/admin/*` (server still boots).
+> - **Q3 (single admin):** single username/hash pair.
+> - **Q4 (audit log table):** out of scope; structured `Info` logs only.
+> - **Q5 (rate limit):** out of scope; bcrypt cost-10 throttle is the only defense for now.
+> - **Q6 (CSRF):** not applicable since basic auth is sent on every request.
+>
+> **Implementation deviations / refinements:**
+> - Config keys are camelCase (`basicAuth.username`, `basicAuth.passwordHash`)
+>   to match the existing koanf style in this project (`waitlist.entryBatchSize`
+>   etc.), not snake_case as the plan sketched.
+> - The handler uses `RevokeAccess` (non-Tx) instead of running revoke in a
+>   transaction. Revoke is a single UPDATE — the tx layer was unnecessary
+>   ceremony. Grant still wraps `DeleteByUserIDTx` + `GrantAccessTx` in one tx.
+> - Admin routes are mounted on a sub-mux (`mux.Handle("/admin/", auth(adminMux))`)
+>   so the auth middleware applies uniformly without per-route guards.
+> - `WaitingListRepository.DeleteByIDs` (existing batch helper) was left alone;
+>   the new `DeleteByID` (single-row, returns `ErrWaitingListEntryNotFound`)
+>   is what the admin endpoint uses.
+
 ## Overview
 
 Expose a set of authenticated `/admin/*` HTTP endpoints that back the new admin page (UI in [plan 18](../18-admin-web-ui/plan.md)). The endpoints surface dashboard metrics, two filterable user lists (with-access / waiting-list), and three mutating actions (admin-grant, admin-revoke, waitlist-delete). All `/admin/*` routes are protected by HTTP Basic Auth whose credentials are configured in `config.json`.

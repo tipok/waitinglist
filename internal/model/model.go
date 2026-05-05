@@ -25,12 +25,13 @@ type Tx interface {
 
 // Sentinel errors for repository operations.
 var (
-	ErrDuplicateEmail        = errors.New("email already exists")
-	ErrUserNotFound          = errors.New("user not found")
-	ErrAlreadyOnWaitingList  = errors.New("user is already on the waiting list")
-	ErrWaitingListForeignKey = errors.New("user does not exist")
-	ErrAlreadyHasAccess      = errors.New("user already has access")
-	ErrRevokeReasonRequired  = errors.New("access revoke reason is required")
+	ErrDuplicateEmail           = errors.New("email already exists")
+	ErrUserNotFound             = errors.New("user not found")
+	ErrAlreadyOnWaitingList     = errors.New("user is already on the waiting list")
+	ErrWaitingListForeignKey    = errors.New("user does not exist")
+	ErrAlreadyHasAccess         = errors.New("user already has access")
+	ErrRevokeReasonRequired     = errors.New("access revoke reason is required")
+	ErrWaitingListEntryNotFound = errors.New("waiting list entry not found")
 )
 
 // UserEntity represents a user stored in the user_entity table.
@@ -73,6 +74,26 @@ type UserInfoList struct {
 type WaitingListEntry struct {
 	ID                string    `json:"id"`
 	UserID            string    `json:"user_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	WeightedCreatedAt time.Time `json:"weighted_created_at"`
+}
+
+// DayCount is one bucket of the dashboard "enlistments per day" series.
+type DayCount struct {
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+}
+
+// WaitingListAdminRow is a denormalized waiting-list view used by the admin
+// list endpoint. It joins user_entity onto waiting_list so the UI can
+// render rows in a single round trip.
+type WaitingListAdminRow struct {
+	EntryID           string    `json:"entry_id"`
+	UserID            string    `json:"user_id"`
+	Email             string    `json:"email"`
+	Firstname         string    `json:"firstname"`
+	Lastname          string    `json:"lastname"`
+	Weight            int       `json:"weight"`
 	CreatedAt         time.Time `json:"created_at"`
 	WeightedCreatedAt time.Time `json:"weighted_created_at"`
 }

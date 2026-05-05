@@ -26,6 +26,22 @@ type Config struct {
 	Database          DatabaseConfig          `koanf:"database"`
 	Waitlist          WaitlistConfig          `koanf:"waitlist"`
 	SchedulerInterval SchedulerIntervalConfig `koanf:"schedulerInterval"`
+	Admin             AdminConfig             `koanf:"admin"`
+}
+
+// AdminConfig configures the protected /admin/* routes. When BasicAuth is
+// missing or empty, the admin routes are not registered.
+type AdminConfig struct {
+	BasicAuth BasicAuthConfig `koanf:"basicAuth"`
+}
+
+// BasicAuthConfig holds the credentials for HTTP Basic Auth on /admin/*.
+// PasswordHash must be a bcrypt hash; generate with e.g.
+//
+//	htpasswd -nbBC 10 admin 'changeme' | cut -d: -f2
+type BasicAuthConfig struct {
+	Username     string `koanf:"username"`
+	PasswordHash string `koanf:"passwordHash"`
 }
 
 type DatabaseConfig struct {

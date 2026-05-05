@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -208,6 +209,144 @@ func (r *UserRepository) GrantAccessTx(ctx context.Context, tx model.DBTX, ids [
 	}
 
 	return nil
+}
+
+// GetByID returns a user by primary key. Returns model.ErrUserNotFound if
+// no row matches.
+//
+//goland:noinspection ALL
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.UserEntity, error) {
+	//goland:noinspection ALL
+	query := `SELECT ` + userSelectColumns + `
+		FROM user_entity
+		WHERE id = $1`
+
+	user := &model.UserEntity{}
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID, &user.Firstname, &user.Lastname, &user.Email,
+		&user.HasAccess, &user.CreatedAt, &user.IPAddress,
+		&user.AccessGrantedAt, &user.AccessGrantedBy,
+		&user.AccessRevokedAt, &user.AccessRevokedBy, &user.AccessRevokeReason,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrUserNotFound
+		}
+		return nil, fmt.Errorf("querying user by id: %w", err)
+	}
+	return user, nil
+}
+
+// CountByAccess returns (waitListCount, withAccessCount) — the number of
+// users currently on the waiting list and the number of users who currently
+// have access. Combined total = waitListCount + withAccessCount, but a user
+// is never in both states simultaneously (the scheduler drops the
+// waiting_list row when granting access).
+//
+//goland:noinspection ALL
+func (r *UserRepository) CountByAccess(ctx context.Context) (int, int, error) {
+	var waitListCount, withAccessCount int
+
+	const query = `
+		SELECT
+			(SELECT COUNT(*) FROM waiting_list)                       AS waitlist_count,
+			(SELECT COUNT(*) FROM user_entity WHERE has_access = TRUE) AS access_count`
+
+	if err := r.db.QueryRowContext(ctx, query).Scan(&waitListCount, &withAccessCount); err != nil {
+		return 0, 0, fmt.Errorf("counting users by access: %w", err)
+	}
+	return waitListCount, withAccessCount, nil
+}
+
+// EnlistmentsByDay returns one DayCount per UTC day in the last `days`
+// days, ascending by day. Days with no signups are zero-filled. `days` is
+// clamped to [1, 365].
+//
+//goland:noinspection ALL
+func (r *UserRepository) EnlistmentsByDay(ctx context.Context, days int) ([]model.DayCount, error) {
+	if days < 1 {
+		days = 1
+	}
+	if days > 365 {
+		days = 365
+	}
+
+	const query = `
+		SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+		       COUNT(*) AS count
+		FROM   user_entity
+		WHERE  created_at >= NOW() - ($1 || ' days')::interval
+		GROUP  BY 1
+		ORDER  BY 1`
+
+	rows, err := r.db.QueryContext(ctx, query, days)
+	if err != nil {
+		return nil, fmt.Errorf("querying enlistments by day: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	got := make(map[string]int, days)
+	for rows.Next() {
+		var d model.DayCount
+		if err := rows.Scan(&d.Day, &d.Count); err != nil {
+			return nil, fmt.Errorf("scanning day count: %w", err)
+		}
+		got[d.Day] = d.Count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating day count rows: %w", err)
+	}
+
+	out := make([]model.DayCount, 0, days)
+	now := time.Now().UTC()
+	for i := days - 1; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i).Format("2006-01-02")
+		out = append(out, model.DayCount{Day: day, Count: got[day]})
+	}
+	return out, nil
+}
+
+// ListWithAccess returns users where has_access = true, optionally filtered
+// by a case-insensitive email substring. Pagination via limit/offset. The
+// caller is responsible for clamping limit/offset to sane values.
+//
+//goland:noinspection ALL
+func (r *UserRepository) ListWithAccess(ctx context.Context, emailLike string, limit, offset int) ([]model.UserEntity, error) {
+	//goland:noinspection ALL
+	query := `SELECT ` + userSelectColumns + `
+		FROM   user_entity
+		WHERE  has_access = TRUE
+		  AND  ($1 = '' OR email ILIKE '%' || $1 || '%')
+		ORDER  BY access_granted_at DESC NULLS LAST, email ASC
+		LIMIT  $2 OFFSET $3`
+
+	rows, err := r.db.QueryContext(ctx, query, emailLike, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("listing users with access: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	users := make([]model.UserEntity, 0, limit)
+	for rows.Next() {
+		var u model.UserEntity
+		if err := rows.Scan(
+			&u.ID, &u.Firstname, &u.Lastname, &u.Email,
+			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
+			&u.AccessGrantedAt, &u.AccessGrantedBy,
+			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
+		); err != nil {
+			return nil, fmt.Errorf("scanning user with access: %w", err)
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating users with access: %w", err)
+	}
+	return users, nil
 }
 
 // RevokeAccess flips has_access to false for one user and records the

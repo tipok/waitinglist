@@ -79,6 +79,19 @@ func main() {
 	waitListHandler.RegisterRoutes(mux)
 	healthHandler.RegisterRoutes(mux)
 
+	adminUser := cfg.Admin.BasicAuth.Username
+	adminHash := []byte(cfg.Admin.BasicAuth.PasswordHash)
+	if adminUser == "" || len(adminHash) == 0 {
+		logger.Warn("admin basic auth not configured; /admin routes disabled")
+	} else {
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, logger)
+		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
+
+		adminMux := http.NewServeMux()
+		adminHandler.RegisterRoutes(adminMux)
+		mux.Handle("/admin/", auth(adminMux))
+	}
+
 	wrapped := handler.LoggingMiddleware(handler.JSONContentType(mux), logger)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
