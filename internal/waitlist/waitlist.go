@@ -55,9 +55,9 @@ func Start(
 			return
 		}
 
-		err = userRepo.SetHasAccess(ctx, usersToAllow)
+		err = userRepo.GrantAccess(ctx, usersToAllow, "scheduler")
 		if err != nil {
-			logger.Error("failed to set has_access", "error", err)
+			logger.Error("failed to grant access", "error", err)
 			return
 		}
 

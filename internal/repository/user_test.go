@@ -334,100 +334,268 @@ func TestSetHasAccess_UserNotFound(t *testing.T) {
 	}
 }
 
-func TestHasAccessOneWayTrigger_RejectsTrueToFalse(t *testing.T) {
+// Migration 007 dropped the one-way has_access trigger from migration 006.
+// Revocation is now allowed at the SQL level; the application enforces
+// "only via RevokeAccessTx" instead.
+func TestHasAccessOneWayTrigger_DroppedByMigration007(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "One", Lastname: "Way", Email: "oneway@example.com"}
+	user := &model.UserEntity{Firstname: "Raw", Lastname: "Update", Email: "raw@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
-	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
-		t.Fatalf("set has_access failed: %v", err)
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "scheduler"); err != nil {
+		t.Fatalf("grant access failed: %v", err)
 	}
 
 	//goland:noinspection ALL
 	_, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = false WHERE id = $1", user.ID)
+	if err != nil {
+		t.Fatalf("expected raw UPDATE to succeed (trigger should be gone), got %v", err)
+	}
+}
+
+func TestGrantAccessTx_PopulatesAuditColumns(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Granted", Lastname: "Audit", Email: "granted@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "scheduler"); err != nil {
+		t.Fatalf("grant access failed: %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "granted@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if !found.HasAccess {
+		t.Error("expected has_access true")
+	}
+	if found.AccessGrantedAt == nil {
+		t.Error("expected access_granted_at populated")
+	}
+	if found.AccessGrantedBy == nil || *found.AccessGrantedBy != "scheduler" {
+		t.Errorf("expected access_granted_by=scheduler, got %v", found.AccessGrantedBy)
+	}
+	if found.AccessRevokedAt != nil || found.AccessRevokedBy != nil || found.AccessRevokeReason != nil {
+		t.Error("expected revoke columns to remain NULL on grant")
+	}
+}
+
+func TestGrantAccessTx_AdminSource(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Admin", Lastname: "Granted", Email: "admingrant@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "admin"); err != nil {
+		t.Fatalf("grant access failed: %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "admingrant@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if found.AccessGrantedBy == nil || *found.AccessGrantedBy != "admin" {
+		t.Errorf("expected access_granted_by=admin, got %v", found.AccessGrantedBy)
+	}
+}
+
+func TestGrantAccessTx_RejectsUnknownSource(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Bad", Lastname: "Source", Email: "badsrc@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	err := repo.GrantAccess(ctx, []string{user.ID}, "robot")
 	if err == nil {
-		t.Fatal("expected trigger to reject has_access true → false update")
+		t.Fatal("expected error for unknown grant source")
 	}
-	if !strings.Contains(err.Error(), "has_access is one-way") {
-		t.Errorf("expected error to mention 'has_access is one-way', got %v", err)
+	if !strings.Contains(err.Error(), "invalid grant source") {
+		t.Errorf("expected error mentioning invalid grant source, got %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "oneway@example.com")
+	found, err := repo.GetByEmail(ctx, "badsrc@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if found.HasAccess {
+		t.Error("expected has_access to remain false after rejected grant")
+	}
+}
+
+func TestRevokeAccessTx_PopulatesAuditAndFlipsFlag(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Revoked", Lastname: "User", Email: "revoked@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "admin"); err != nil {
+		t.Fatalf("grant access failed: %v", err)
+	}
+
+	if err := repo.RevokeAccess(ctx, user.ID, "policy violation", "admin1"); err != nil {
+		t.Fatalf("revoke access failed: %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "revoked@example.com")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if found.HasAccess {
+		t.Error("expected has_access false after revoke")
+	}
+	if found.AccessRevokedAt == nil {
+		t.Error("expected access_revoked_at populated")
+	}
+	if found.AccessRevokedBy == nil || *found.AccessRevokedBy != "admin1" {
+		t.Errorf("expected access_revoked_by=admin1, got %v", found.AccessRevokedBy)
+	}
+	if found.AccessRevokeReason == nil || *found.AccessRevokeReason != "policy violation" {
+		t.Errorf("expected reason=policy violation, got %v", found.AccessRevokeReason)
+	}
+}
+
+func TestRevokeAccessTx_EmptyReasonRejected(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Empty", Lastname: "Reason", Email: "empty@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "admin"); err != nil {
+		t.Fatalf("grant access failed: %v", err)
+	}
+
+	err := repo.RevokeAccess(ctx, user.ID, "   ", "admin1")
+	if !errors.Is(err, model.ErrRevokeReasonRequired) {
+		t.Fatalf("expected ErrRevokeReasonRequired, got %v", err)
+	}
+
+	found, err := repo.GetByEmail(ctx, "empty@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
 	if !found.HasAccess {
-		t.Error("expected has_access to remain true after blocked update")
+		t.Error("expected has_access to remain true after rejected revoke")
 	}
 }
 
-func TestHasAccessOneWayTrigger_AllowsFalseToTrue(t *testing.T) {
+func TestRevokeAccessTx_UserNotFound(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+
+	err := repo.RevokeAccess(t.Context(), "00000000-0000-0000-0000-000000000000", "x", "admin1")
+	if !errors.Is(err, model.ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestGrantAccessTx_ClearsPriorRevocation(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "F2T", Lastname: "User", Email: "f2t@example.com"}
+	user := &model.UserEntity{Firstname: "Re", Lastname: "Granted", Email: "regranted@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
-	if user.HasAccess {
-		t.Fatal("expected default has_access false")
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "admin"); err != nil {
+		t.Fatalf("first grant failed: %v", err)
+	}
+	if err := repo.RevokeAccess(ctx, user.ID, "abuse", "admin1"); err != nil {
+		t.Fatalf("revoke failed: %v", err)
+	}
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "admin"); err != nil {
+		t.Fatalf("re-grant failed: %v", err)
 	}
 
-	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
-		t.Fatalf("expected false → true update to succeed, got %v", err)
-	}
-}
-
-func TestHasAccessOneWayTrigger_AllowsUnrelatedUpdate(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewUserRepository(db)
-	ctx := t.Context()
-
-	user := &model.UserEntity{Firstname: "Stay", Lastname: "Granted", Email: "stay@example.com"}
-	if err := repo.Create(ctx, user); err != nil {
-		t.Fatalf("create failed: %v", err)
-	}
-	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
-		t.Fatalf("set has_access failed: %v", err)
-	}
-
-	if //goland:noinspection ALL
-	_, err := db.ExecContext(ctx, "UPDATE user_entity SET firstname = 'Renamed' WHERE id = $1", user.ID); err != nil {
-		t.Fatalf("expected unrelated UPDATE to succeed, got %v", err)
-	}
-
-	found, err := repo.GetByEmail(ctx, "stay@example.com")
+	found, err := repo.GetByEmail(ctx, "regranted@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
-	if found.Firstname != "Renamed" {
-		t.Errorf("expected firstname Renamed, got %s", found.Firstname)
-	}
 	if !found.HasAccess {
-		t.Error("expected has_access to remain true")
+		t.Error("expected has_access true after re-grant")
+	}
+	if found.AccessRevokedAt != nil || found.AccessRevokedBy != nil || found.AccessRevokeReason != nil {
+		t.Error("expected revoke columns cleared after re-grant")
 	}
 }
 
-func TestHasAccessOneWayTrigger_AllowsTrueToTrueNoOp(t *testing.T) {
+func TestGetUserInfoByEmails_IncludesRevokeReason(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "True", Lastname: "Twice", Email: "twice@example.com"}
+	user := &model.UserEntity{Firstname: "Lookup", Lastname: "Revoked", Email: "lookup@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
-	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
-		t.Fatalf("first set has_access failed: %v", err)
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "scheduler"); err != nil {
+		t.Fatalf("grant failed: %v", err)
+	}
+	if err := repo.RevokeAccess(ctx, user.ID, "spam", "admin1"); err != nil {
+		t.Fatalf("revoke failed: %v", err)
 	}
 
-	if //goland:noinspection ALL
-	_, err := db.ExecContext(ctx, "UPDATE user_entity SET has_access = true WHERE id = $1", user.ID); err != nil {
-		t.Fatalf("expected true → true UPDATE to succeed, got %v", err)
+	infos, err := repo.GetUserInfoByEmails(ctx, []string{"lookup@example.com"})
+	if err != nil {
+		t.Fatalf("get user info failed: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(infos))
+	}
+	got := infos[0]
+	if got.HasAccess {
+		t.Error("expected has_access false")
+	}
+	if got.AccessRevokeReason == nil || *got.AccessRevokeReason != "spam" {
+		t.Errorf("expected reason=spam, got %v", got.AccessRevokeReason)
+	}
+	if got.AccessRevokedAt == nil {
+		t.Error("expected access_revoked_at populated")
+	}
+}
+
+func TestRevokePairCheckConstraint(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewUserRepository(db)
+	ctx := t.Context()
+
+	user := &model.UserEntity{Firstname: "Pair", Lastname: "Check", Email: "pair@example.com"}
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	// Setting access_revoked_at without a reason must violate the
+	// user_entity_revoke_pair_check constraint installed by migration 007.
+	//goland:noinspection ALL
+	_, err := db.ExecContext(ctx,
+		"UPDATE user_entity SET access_revoked_at = NOW() WHERE id = $1", user.ID)
+	if err == nil {
+		t.Fatal("expected revoke pair CHECK constraint to reject revoked_at without reason")
+	}
+	if !strings.Contains(err.Error(), "user_entity_revoke_pair_check") {
+		t.Errorf("expected error mentioning the constraint name, got %v", err)
 	}
 }

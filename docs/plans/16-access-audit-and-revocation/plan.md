@@ -1,5 +1,23 @@
 # 16 — Access Audit Columns & Revocation Support
 
+> **Status:** ✅ Complete. Migration 007 drops the one-way trigger from plan 14
+> as recommended in **Open Question 1**. Backfill uses `created_at` +
+> `'scheduler'` per **Open Question 2**. The remaining open questions
+> (3, 4, 5) belong to plans 17/18 and were left unresolved here.
+>
+> **Implementation deviations from the plan-as-written:**
+> - Both transactional (`*Tx`) and non-transactional (`Grant`/`Revoke`) wrapper
+>   methods were added (plan only specified `*Tx`). The non-Tx forms are used
+>   by the scheduler and tests.
+> - The `validGrantSources` set is enforced inside `GrantAccessTx`; the
+>   migration's CHECK constraint is the second line of defense.
+> - `GetByEmailTx` SELECTs all audit columns; `GetUserInfoByEmails` SELECTs
+>   only the four user-facing audit columns (`access_revoked_by` is excluded
+>   from the public lookup endpoint, as the plan called out).
+> - Repository tests for the trigger from plan 14 were rewritten to assert
+>   that migration 007 dropped it; one new test asserts the
+>   `user_entity_revoke_pair_check` constraint rejects half-set revoke pairs.
+
 ## Overview
 
 The upcoming admin page (plans [17](../17-admin-api-and-auth/plan.md) and [18](../18-admin-web-ui/plan.md)) needs to:

@@ -30,26 +30,38 @@ var (
 	ErrAlreadyOnWaitingList  = errors.New("user is already on the waiting list")
 	ErrWaitingListForeignKey = errors.New("user does not exist")
 	ErrAlreadyHasAccess      = errors.New("user already has access")
+	ErrRevokeReasonRequired  = errors.New("access revoke reason is required")
 )
 
 // UserEntity represents a user stored in the user_entity table.
 type UserEntity struct {
-	ID        string    `json:"id"`
-	Firstname string    `json:"firstname"`
-	Lastname  string    `json:"lastname"`
-	Email     string    `json:"email"`
-	HasAccess bool      `json:"has_access"`
-	CreatedAt time.Time `json:"created_at"`
-	IPAddress *string   `json:"ip_address,omitzero"`
+	ID                 string     `json:"id"`
+	Firstname          string     `json:"firstname"`
+	Lastname           string     `json:"lastname"`
+	Email              string     `json:"email"`
+	HasAccess          bool       `json:"has_access"`
+	CreatedAt          time.Time  `json:"created_at"`
+	IPAddress          *string    `json:"ip_address,omitzero"`
+	AccessGrantedAt    *time.Time `json:"access_granted_at,omitzero"`
+	AccessGrantedBy    *string    `json:"access_granted_by,omitzero"`
+	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitzero"`
+	AccessRevokedBy    *string    `json:"access_revoked_by,omitzero"`
+	AccessRevokeReason *string    `json:"access_revoke_reason,omitzero"`
 }
 
-// UserInfo represents user information returned by the lookup endpoint.
+// UserInfo represents user information returned by the public lookup endpoint
+// (GET /waitinglist/users). The admin identifier (access_revoked_by) is
+// deliberately omitted so the public endpoint does not leak it.
 type UserInfo struct {
-	Firstname string    `json:"firstname"`
-	Lastname  string    `json:"lastname"`
-	Email     string    `json:"email"`
-	HasAccess bool      `json:"has_access"`
-	CreatedAt time.Time `json:"created_at"`
+	Firstname          string     `json:"firstname"`
+	Lastname           string     `json:"lastname"`
+	Email              string     `json:"email"`
+	HasAccess          bool       `json:"has_access"`
+	CreatedAt          time.Time  `json:"created_at"`
+	AccessGrantedAt    *time.Time `json:"access_granted_at,omitzero"`
+	AccessGrantedBy    *string    `json:"access_granted_by,omitzero"`
+	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitzero"`
+	AccessRevokeReason *string    `json:"access_revoke_reason,omitzero"`
 }
 
 // UserInfoList wraps a slice of UserInfo for JSON serialization.
