@@ -145,3 +145,47 @@ func TestLoggingMiddleware_ChainsNextHandler(t *testing.T) {
 		t.Fatal("expected inner handler to be called")
 	}
 }
+
+func TestLoggingMiddleware_SkipsHealthz(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	called := false
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := LoggingMiddleware(inner, logger)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if !called {
+		t.Fatal("expected inner handler to be called for /healthz")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("expected no log output for /healthz, got: %s", buf.String())
+	}
+}
+
+func TestLoggingMiddleware_LogsNonHealthzPath(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := LoggingMiddleware(inner, logger)
+	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "path=/waitinglist") {
+		t.Errorf("expected log to contain path=/waitinglist, got: %s", logOutput)
+	}
+}

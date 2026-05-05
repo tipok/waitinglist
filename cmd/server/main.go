@@ -68,6 +68,7 @@ func main() {
 	waitListRepo := repository.NewWaitingListRepository(db)
 	schedulerRepo := repository.NewSchedulerRepository(db)
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
+	healthHandler := handler.NewHealthHandler(db, logger)
 	err = waitlist.Start(ctx, cfg, waitListRepo, userRepo, schedulerRepo)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
@@ -76,6 +77,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	waitListHandler.RegisterRoutes(mux)
+	healthHandler.RegisterRoutes(mux)
 
 	wrapped := handler.LoggingMiddleware(handler.JSONContentType(mux), logger)
 

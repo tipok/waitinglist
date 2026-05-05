@@ -25,14 +25,25 @@ waitinglist/
 │   ├── config/config.go            # Configuration loading (koanf, JSON file)
 │   ├── database/postgres.go        # DB connection setup + migration runner
 │   ├── handler/
-│   │   ├── user.go                 # HTTP handlers for user entity endpoints
+│   │   ├── health.go               # GET /healthz — DB-ping liveness/readiness probe
+│   │   ├── ip.go                   # Client IP extraction helpers
+│   │   ├── middleware.go           # LoggingMiddleware, JSONContentType
+│   │   ├── response.go             # WriteJSON / WriteError helpers
 │   │   └── waitinglist.go          # HTTP handlers for waiting list endpoints
-│   ├── model/model.go              # Data structures (UserEntity, WaitingListEntry)
-│   └── repository/
-│       ├── user.go                 # DB operations for user_entity table
-│       └── waitinglist.go          # DB operations for waiting_list table
+│   ├── logger/logger.go            # slog logger construction
+│   ├── model/model.go              # Data structures, sentinel errors, DB/Tx interfaces
+│   ├── repository/
+│   │   ├── scheduler.go            # DB operations for scheduler_state table
+│   │   ├── user.go                 # DB operations for user_entity table
+│   │   └── waitinglist.go          # DB operations for waiting_list table
+│   └── waitlist/waitlist.go        # Background scheduler that grants access
 ├── migrations/
-│   └── 001_init.sql                # SQL migration for initial schema
+│   ├── 001_init.sql                # Initial schema (user_entity, waiting_list)
+│   ├── 002_schema_improvements.sql
+│   ├── 003_scheduler_state.sql
+│   ├── 004_user_created_at.sql
+│   ├── 005_user_entity_ip.sql
+│   └── 006_has_access_one_way.sql  # Trigger enforcing has_access one-way invariant
 ├── config.json                     # Default configuration file
 ├── docs/plans/                     # Feature plans
 ├── Makefile
@@ -68,6 +79,15 @@ The application loads configuration from a JSON file passed via `--config` flag:
 4. Run migrations from `migrations/` directory
 5. Start HTTP server on configured port
 
+### HTTP Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/waitinglist` | Add a user to the waiting list (creates the user if needed). `201` on success, `409` if already on the list, `205` if the user already has access. |
+| `GET`  | `/waitinglist` | List all waiting list entries. |
+| `GET`  | `/waitinglist/users` | Look up users by email (`?email=`). Supports ETag caching. |
+| `GET`  | `/healthz` | Health probe. Pings the database with a 2 s timeout. `200` healthy, `503` unhealthy. Excluded from `LoggingMiddleware` to avoid probe-spam. |
+
 ## Plan Management
 
 - All feature plans are stored in `docs/plans/`, organized by feature in their own directories.
@@ -93,8 +113,8 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `11-ip-tracking` | Not started | Track client IP address on waiting list entry creation |
 | `12-docker-build` | ✅ Complete | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
 | `13-github-docker-workflow` | ✅ Complete | GitHub Actions workflow building and pushing Docker images to ghcr.io |
-| `14-already-has-access-response` | Not started | Return HTTP 205 on re-signup when user already has access; enforce one-way `has_access` invariant in DB |
-| `15-health-check` | Not started | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
+| `14-already-has-access-response` | ✅ Complete | Return HTTP 205 on re-signup when user already has access; enforce one-way `has_access` invariant in DB |
+| `15-health-check` | ✅ Complete | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
 
 ## Development Workflow
 
@@ -137,6 +157,7 @@ The project includes a `Makefile` with standard targets. After making any code c
 - Always use `log/slog` for logging. Do not use the standard `log` package or third-party logging libraries.
 - Create a logger instance with `slog.New(slog.NewTextHandler(os.Stderr, nil))` and pass it where needed.
 - Use structured key-value pairs for log arguments: `logger.Info("message", "key", value)` — never use `fmt.Sprintf`-style formatting.
+- Request access logging is performed by `LoggingMiddleware` (`internal/handler/middleware.go`). `/healthz` requests are deliberately excluded so orchestrator probes do not flood the log stream; failures inside the health handler are still logged at `Warn`.
 
 ## Testing
 

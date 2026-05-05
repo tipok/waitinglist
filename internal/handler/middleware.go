@@ -18,8 +18,13 @@ func (r *statusRecorder) WriteHeader(code int) {
 }
 
 // LoggingMiddleware logs the method, path, status code, and duration for every request.
+// /healthz is excluded to avoid flooding the log stream with orchestrator probe traffic.
 func LoggingMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(rec, r)
