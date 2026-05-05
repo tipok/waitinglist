@@ -1,5 +1,31 @@
 # 18 — Admin Web UI (Dashboard, Lists, Chart)
 
+> **Status:** ✅ Complete. Resolved Open Questions:
+> - **Q1 (chart):** hand-rolled inline SVG (no Chart.js, no CDN).
+> - **Q3 (caching):** `Cache-Control: no-cache` on every asset response so the
+>   browser revalidates after each binary deploy.
+>
+> **Implementation deviations:**
+> - Static URLs are flat (`/admin/admin.css`, `/admin/admin.js`) instead of
+>   the `/admin/static/...` shape the plan sketched. The natural output of
+>   `embed.FS` + `fs.Sub("static")` + `http.StripPrefix("/admin/")` is flat
+>   URLs; nesting `static/` in the URL would have required either an extra
+>   strip layer or shipping the assets at the package root.
+> - The `Handler()` returned by `internal/handler/adminui` deliberately
+>   `Header().Del("Content-Type")` before delegating to the file server.
+>   `JSONContentType` middleware sets `application/json` on every
+>   response, and `http.FileServer` only sets the correct type when none
+>   is present — without the `Del` we'd ship CSS as `application/json`.
+> - A new test `TestAdminRoutes_JSONNotShadowedByFileServer` guards the mux
+>   precedence rule that lets `GET /admin/dashboard` win over the
+>   `/admin/` catch-all file server.
+>
+> **Out of scope (not implemented):**
+> - Q2 (Revoked-users tab), Q4 (bulk select), Q5 (server-rendered/no-JS),
+>   Q6 (i18n) — none of these were requested.
+> - Playwright-style browser automation. The Go tests cover wiring and
+>   asset content-type behavior; UI behavior is verified by hand.
+
 ## Overview
 
 Ship a small, server-rendered HTML admin page that consumes the JSON endpoints from [plan 17](../17-admin-api-and-auth/plan.md). The page is **embedded in the Go binary** via `embed.FS`, served from `GET /admin/` (and `GET /admin/index.html`) behind the same Basic Auth that protects the API. The UI provides:

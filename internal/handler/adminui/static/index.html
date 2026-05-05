@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waiting List Admin</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header>
+    <h1>Waiting List Admin</h1>
+    <nav id="tabs" role="tablist">
+      <button role="tab" data-tab="dashboard" class="tab">Dashboard</button>
+      <button role="tab" data-tab="access" class="tab">Users with Access</button>
+      <button role="tab" data-tab="waitlist" class="tab">Waiting List</button>
+    </nav>
+  </header>
+
+  <div id="banner" class="banner hidden" role="alert"></div>
+
+  <main>
+    <!-- Dashboard tab -->
+    <section id="tab-dashboard" class="tab-panel" hidden>
+      <div class="dashboard-controls">
+        <label>
+          Window:
+          <select id="dashboard-days">
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90" selected>90 days</option>
+            <option value="365">365 days</option>
+          </select>
+        </label>
+        <button id="dashboard-refresh">Refresh</button>
+      </div>
+      <div class="counters">
+        <div class="counter"><div class="counter-label">Waiting list</div><div class="counter-value" id="count-waitlist">—</div></div>
+        <div class="counter"><div class="counter-label">With access</div><div class="counter-value" id="count-access">—</div></div>
+        <div class="counter"><div class="counter-label">Total</div><div class="counter-value" id="count-total">—</div></div>
+      </div>
+      <h2>Enlistments per day</h2>
+      <svg id="chart" class="chart" aria-label="Daily enlistment chart"></svg>
+    </section>
+
+    <!-- Users with Access tab -->
+    <section id="tab-access" class="tab-panel" hidden>
+      <div class="list-controls">
+        <input type="search" id="access-search" placeholder="Search by email…" autocomplete="off">
+        <label>
+          Page size:
+          <select id="access-limit">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button id="access-prev" disabled>Prev</button>
+        <span id="access-page-label">offset 0</span>
+        <button id="access-next">Next</button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Email</th><th>Name</th><th>Enlisted</th><th>Granted</th><th>Granted by</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="access-body"></tbody>
+      </table>
+      <p id="access-empty" class="empty hidden">No users matched.</p>
+    </section>
+
+    <!-- Waiting List tab -->
+    <section id="tab-waitlist" class="tab-panel" hidden>
+      <div class="list-controls">
+        <input type="search" id="waitlist-search" placeholder="Search by email…" autocomplete="off">
+        <label>
+          Page size:
+          <select id="waitlist-limit">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button id="waitlist-prev" disabled>Prev</button>
+        <span id="waitlist-page-label">offset 0</span>
+        <button id="waitlist-next">Next</button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Email</th><th>Name</th><th>Weight</th><th>Enlisted</th><th>Effective queue time</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="waitlist-body"></tbody>
+      </table>
+      <p id="waitlist-empty" class="empty hidden">No entries matched.</p>
+    </section>
+  </main>
+
+  <!-- Confirmation modal -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <h2 id="modal-title"></h2>
+      <p id="modal-body"></p>
+      <label id="modal-reason-row" class="hidden">
+        Reason
+        <textarea id="modal-reason" maxlength="500" rows="3"></textarea>
+        <small><span id="modal-reason-count">0</span>/500</small>
+      </label>
+      <p id="modal-error" class="modal-error hidden"></p>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn-secondary">Cancel</button>
+        <button id="modal-confirm" class="btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

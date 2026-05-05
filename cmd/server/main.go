@@ -15,6 +15,7 @@ import (
 	"github.com/tipok/waitinglist/internal/config"
 	"github.com/tipok/waitinglist/internal/database"
 	"github.com/tipok/waitinglist/internal/handler"
+	"github.com/tipok/waitinglist/internal/handler/adminui"
 	lg "github.com/tipok/waitinglist/internal/logger"
 	"github.com/tipok/waitinglist/internal/repository"
 	"github.com/tipok/waitinglist/internal/waitlist"
@@ -89,6 +90,11 @@ func main() {
 
 		adminMux := http.NewServeMux()
 		adminHandler.RegisterRoutes(adminMux)
+		// File-server fallback for the embedded admin UI. The JSON routes
+		// register more specific patterns (e.g. "GET /admin/dashboard"),
+		// so ServeMux dispatches them first, and only requests for
+		// /admin/, /admin/admin.css, /admin/admin.js fall through here.
+		adminMux.Handle("/admin/", http.StripPrefix("/admin/", adminui.Handler()))
 		mux.Handle("/admin/", auth(adminMux))
 	}
 

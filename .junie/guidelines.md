@@ -27,8 +27,10 @@ waitinglist/
 │   ├── handler/
 │   │   ├── health.go               # GET /healthz — DB-ping liveness/readiness probe
 │   │   ├── ip.go                   # Client IP extraction helpers
-│   │   ├── middleware.go           # LoggingMiddleware, JSONContentType
+│   │   ├── middleware.go           # LoggingMiddleware, JSONContentType, BasicAuthMiddleware
 │   │   ├── response.go             # WriteJSON / WriteError helpers
+│   │   ├── admin.go                # /admin/* JSON endpoints (dashboard, lists, grant, revoke)
+│   │   ├── adminui/                # Embedded HTML/CSS/JS admin SPA (//go:embed static)
 │   │   └── waitinglist.go          # HTTP handlers for waiting list endpoints
 │   ├── logger/logger.go            # slog logger construction
 │   ├── model/model.go              # Data structures, sentinel errors, DB/Tx interfaces
@@ -94,6 +96,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `POST` | `/admin/users/{id}/grant-access` | **Admin · Basic Auth.** Admin-grants access (atomic with waitlist removal); returns the updated user. |
 | `POST` | `/admin/users/{id}/revoke-access` | **Admin · Basic Auth.** Body `{"reason":"…"}` (1..500 chars). Calls `RevokeAccess` with the authenticated admin as `revoked_by`. |
 | `DELETE` | `/admin/waitlist/{id}` | **Admin · Basic Auth.** Removes a single waiting-list row by entry id. |
+| `GET`  | `/admin/` (and `/admin/{asset}`) | **Admin · Basic Auth.** Embedded HTML/CSS/JS admin SPA (dashboard + lists + actions). Served from `embed.FS` in `internal/handler/adminui/`. |
 
 ## Plan Management
 
@@ -124,7 +127,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `15-health-check` | ✅ Complete | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
 | `16-access-audit-and-revocation` | ✅ Complete | Audit columns (`access_granted_at/by`, `access_revoked_at/by/reason`); drop one-way trigger; `GrantAccessTx`/`RevokeAccessTx` |
 | `17-admin-api-and-auth` | ✅ Complete | `/admin/*` JSON endpoints (dashboard, list, grant, revoke, delete) protected by configurable Basic Auth |
-| `18-admin-web-ui` | Not started | Embedded HTML/JS admin page with dashboard, searchable lists, and revoke/grant/delete actions |
+| `18-admin-web-ui` | ✅ Complete | Embedded HTML/JS admin page with dashboard, searchable lists, and revoke/grant/delete actions |
 
 ## Development Workflow
 
