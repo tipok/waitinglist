@@ -115,6 +115,9 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `13-github-docker-workflow` | ✅ Complete | GitHub Actions workflow building and pushing Docker images to ghcr.io |
 | `14-already-has-access-response` | ✅ Complete | Return HTTP 205 on re-signup when user already has access; enforce one-way `has_access` invariant in DB |
 | `15-health-check` | ✅ Complete | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
+| `16-access-audit-and-revocation` | Not started | Audit columns (`access_granted_at/by`, `access_revoked_at/by/reason`); drop one-way trigger; `GrantAccessTx`/`RevokeAccessTx` |
+| `17-admin-api-and-auth` | Not started | `/admin/*` JSON endpoints (dashboard, list, grant, revoke, delete) protected by configurable Basic Auth |
+| `18-admin-web-ui` | Not started | Embedded HTML/JS admin page with dashboard, searchable lists, and revoke/grant/delete actions |
 
 ## Development Workflow
 
