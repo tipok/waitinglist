@@ -406,9 +406,13 @@ function showError(msg) {
   setTimeout(() => banner.classList.add("hidden"), 5000);
 }
 
-function td(text) {
+function td(content) {
   const cell = document.createElement("td");
-  cell.textContent = text;
+  if (content instanceof Node) {
+    cell.appendChild(content);
+  } else {
+    cell.textContent = content;
+  }
   return cell;
 }
 
