@@ -94,6 +94,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `12-docker-build` | ✅ Complete | Multi-stage Dockerfile with distroless image and arm64/amd64 Make targets |
 | `13-github-docker-workflow` | ✅ Complete | GitHub Actions workflow building and pushing Docker images to ghcr.io |
 | `14-already-has-access-response` | Not started | Return HTTP 205 on re-signup when user already has access; enforce one-way `has_access` invariant in DB |
+| `15-health-check` | Not started | `GET /healthz` endpoint that pings the database and returns 200/503 with a JSON status body |
 
 ## Development Workflow
 
