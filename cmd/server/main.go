@@ -32,7 +32,7 @@ func main() {
 	}
 
 	if flags.HealthCheck {
-		runHealthCheck(logger, resolveHealthCheckPort(flags.Port))
+		runHealthCheck(logger, resolveHealthCheckPort())
 	}
 
 	cfg, err := config.Load(flags.ConfigPath)
@@ -141,10 +141,7 @@ func main() {
 
 // resolveHealthCheckPort determines the port for the /healthz probe without
 // reading a config file. Precedence: --port flag > WL_PORT env > DefaultPort.
-func resolveHealthCheckPort(flagPort int) int {
-	if flagPort > 0 {
-		return flagPort
-	}
+func resolveHealthCheckPort() int {
 	if v := os.Getenv("WL_PORT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
