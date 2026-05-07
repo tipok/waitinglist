@@ -23,16 +23,20 @@ import (
 
 func main() {
 	logger := lg.NewLogger()
-	configPath, err := config.ParseFlags(os.Args[1:])
+	flags, err := config.ParseFlags(os.Args[1:])
 	if err != nil {
 		logger.Error("Error parsing flags", "error", err)
 		os.Exit(1)
 	}
 
-	cfg, err := config.Load(configPath)
+	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
 		logger.Error("Error loading config", "error", err)
 		os.Exit(1)
+	}
+
+	if flags.HealthCheck {
+		runHealthCheck(cfg.Port)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -131,4 +135,29 @@ func main() {
 		logger.Error("Server forced to shutdown:", "error", err)
 		panic(err)
 	}
+}
+
+// probeHealth performs an HTTP GET to /healthz on the given port.
+// Returns nil on HTTP 200, an error otherwise.
+func probeHealth(port int) error {
+	target := fmt.Sprintf("http://localhost:%d/healthz", port)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(target) //nolint:noctx
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// runHealthCheck calls probeHealth and exits with the appropriate code.
+func runHealthCheck(port int) {
+	if err := probeHealth(port); err != nil {
+		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }

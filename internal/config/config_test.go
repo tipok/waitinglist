@@ -18,22 +18,25 @@ func writeTempConfig(t *testing.T, content string) string {
 }
 
 func TestParseFlags_ValidConfig(t *testing.T) {
-	path, err := ParseFlags([]string{"--config", "/some/path.json"})
+	flags, err := ParseFlags([]string{"--config", "/some/path.json"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if path != "/some/path.json" {
-		t.Errorf("expected /some/path.json, got %s", path)
+	if flags.ConfigPath != "/some/path.json" {
+		t.Errorf("expected /some/path.json, got %s", flags.ConfigPath)
+	}
+	if flags.HealthCheck {
+		t.Error("expected HealthCheck to be false")
 	}
 }
 
 func TestParseFlags_DefaultValue(t *testing.T) {
-	path, err := ParseFlags([]string{})
+	flags, err := ParseFlags([]string{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if path != "conf/dev.json" {
-		t.Errorf("expected default conf/dev.json, got %s", path)
+	if flags.ConfigPath != "conf/dev.json" {
+		t.Errorf("expected default conf/dev.json, got %s", flags.ConfigPath)
 	}
 }
 
@@ -45,12 +48,12 @@ func TestParseFlags_EmptyValue(t *testing.T) {
 }
 
 func TestParseFlags_OverrideDefault(t *testing.T) {
-	path, err := ParseFlags([]string{"--config", "custom.json"})
+	flags, err := ParseFlags([]string{"--config", "custom.json"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if path != "custom.json" {
-		t.Errorf("expected custom.json, got %s", path)
+	if flags.ConfigPath != "custom.json" {
+		t.Errorf("expected custom.json, got %s", flags.ConfigPath)
 	}
 }
 
@@ -58,6 +61,29 @@ func TestParseFlags_InvalidFlag(t *testing.T) {
 	_, err := ParseFlags([]string{"--unknown"})
 	if err == nil {
 		t.Fatal("expected error for unknown flag")
+	}
+}
+
+func TestParseFlags_HealthCheckFlag(t *testing.T) {
+	flags, err := ParseFlags([]string{"--config", "/cfg.json", "--health-check"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if flags.ConfigPath != "/cfg.json" {
+		t.Errorf("expected /cfg.json, got %s", flags.ConfigPath)
+	}
+	if !flags.HealthCheck {
+		t.Error("expected HealthCheck to be true")
+	}
+}
+
+func TestParseFlags_HealthCheckFlagFalseByDefault(t *testing.T) {
+	flags, err := ParseFlags([]string{"--config", "/cfg.json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if flags.HealthCheck {
+		t.Error("expected HealthCheck to be false when flag is absent")
 	}
 }
 

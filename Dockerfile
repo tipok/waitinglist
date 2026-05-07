@@ -14,5 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 FROM gcr.io/distroless/base-debian13:nonroot
 COPY --from=builder /out/waitinglist /waitinglist
 COPY migrations/ /migrations/
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["/waitinglist", "--config", "/config.json", "--health-check"]
 ENTRYPOINT ["/waitinglist"]
 CMD ["--config", "/config.json"]

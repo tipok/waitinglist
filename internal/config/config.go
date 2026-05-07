@@ -61,20 +61,27 @@ type SchedulerIntervalConfig struct {
 	WaitlistCheckInterval time.Duration `koanf:"waitlistCheckInterval"`
 }
 
-// ParseFlags parses the --config flag from os.Args and returns the config file path.
-func ParseFlags(args []string) (string, error) {
+// Flags holds the parsed CLI arguments for the server binary.
+type Flags struct {
+	ConfigPath  string
+	HealthCheck bool
+}
+
+// ParseFlags parses CLI arguments and returns the resolved Flags.
+func ParseFlags(args []string) (Flags, error) {
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
 	configPath := fs.String("config", "conf/dev.json", "path to JSON configuration file")
+	healthCheck := fs.Bool("health-check", false, "probe /healthz and exit 0/1 (for Docker HEALTHCHECK)")
 
 	if err := fs.Parse(args); err != nil {
-		return "", fmt.Errorf("parsing flags: %w", err)
+		return Flags{}, fmt.Errorf("parsing flags: %w", err)
 	}
 
 	if *configPath == "" {
-		return "", fmt.Errorf("--config flag is required")
+		return Flags{}, fmt.Errorf("--config flag is required")
 	}
 
-	return *configPath, nil
+	return Flags{ConfigPath: *configPath, HealthCheck: *healthCheck}, nil
 }
 
 // Load reads the configuration from the given JSON file path and returns a Config
