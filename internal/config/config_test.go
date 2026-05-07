@@ -87,6 +87,26 @@ func TestParseFlags_HealthCheckFlagFalseByDefault(t *testing.T) {
 	}
 }
 
+func TestParseFlags_PortFlag(t *testing.T) {
+	flags, err := ParseFlags([]string{"--config", "/cfg.json", "--port", "9090"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if flags.Port != 9090 {
+		t.Errorf("expected Port 9090, got %d", flags.Port)
+	}
+}
+
+func TestParseFlags_PortDefaultsToZero(t *testing.T) {
+	flags, err := ParseFlags([]string{"--config", "/cfg.json"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if flags.Port != 0 {
+		t.Errorf("expected Port 0 when flag absent, got %d", flags.Port)
+	}
+}
+
 func TestLoad_ValidFullConfig(t *testing.T) {
 	path := writeTempConfig(t, `{
 		"port": 9090,

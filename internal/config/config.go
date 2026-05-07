@@ -65,6 +65,7 @@ type SchedulerIntervalConfig struct {
 type Flags struct {
 	ConfigPath  string
 	HealthCheck bool
+	Port        int // 0 means not set; only used in --health-check mode
 }
 
 // ParseFlags parses CLI arguments and returns the resolved Flags.
@@ -72,6 +73,7 @@ func ParseFlags(args []string) (Flags, error) {
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
 	configPath := fs.String("config", "conf/dev.json", "path to JSON configuration file")
 	healthCheck := fs.Bool("health-check", false, "probe /healthz and exit 0/1 (for Docker HEALTHCHECK)")
+	port := fs.Int("port", 0, "port to probe in --health-check mode (overrides WL_PORT env and default)")
 
 	if err := fs.Parse(args); err != nil {
 		return Flags{}, fmt.Errorf("parsing flags: %w", err)
@@ -81,7 +83,7 @@ func ParseFlags(args []string) (Flags, error) {
 		return Flags{}, fmt.Errorf("--config flag is required")
 	}
 
-	return Flags{ConfigPath: *configPath, HealthCheck: *healthCheck}, nil
+	return Flags{ConfigPath: *configPath, HealthCheck: *healthCheck, Port: *port}, nil
 }
 
 // Load reads the configuration from the given JSON file path and returns a Config

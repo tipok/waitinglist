@@ -129,6 +129,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `17-admin-api-and-auth` | ✅ Complete | `/admin/*` JSON endpoints (dashboard, list, grant, revoke, delete) protected by configurable Basic Auth |
 | `18-admin-web-ui` | ✅ Complete | Embedded HTML/JS admin page with dashboard, searchable lists, and revoke/grant/delete actions |
 | `19-dockerfile-healthcheck` | ✅ Complete | `HEALTHCHECK` in Dockerfile using a `--health-check` flag on the main binary (distroless-compatible) |
+| `20-healthcheck-config-decouple` | ✅ Complete | Stop requiring a config file in `--health-check` mode; resolve port via `--port` flag → `WL_PORT` env → default |
 
 ## Development Workflow
 

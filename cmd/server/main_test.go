@@ -37,3 +37,31 @@ func TestProbeHealth_Unreachable(t *testing.T) {
 		t.Error("expected error when server is unreachable, got nil")
 	}
 }
+
+func TestResolveHealthCheckPort_FlagWins(t *testing.T) {
+	t.Setenv("WL_PORT", "9999")
+	if got := resolveHealthCheckPort(1234); got != 1234 {
+		t.Errorf("expected 1234 (flag), got %d", got)
+	}
+}
+
+func TestResolveHealthCheckPort_EnvUsedWhenFlagZero(t *testing.T) {
+	t.Setenv("WL_PORT", "9999")
+	if got := resolveHealthCheckPort(0); got != 9999 {
+		t.Errorf("expected 9999 (env), got %d", got)
+	}
+}
+
+func TestResolveHealthCheckPort_DefaultWhenNothingSet(t *testing.T) {
+	t.Setenv("WL_PORT", "")
+	if got := resolveHealthCheckPort(0); got != 8080 {
+		t.Errorf("expected 8080 (default), got %d", got)
+	}
+}
+
+func TestResolveHealthCheckPort_InvalidEnvFallsBack(t *testing.T) {
+	t.Setenv("WL_PORT", "abc")
+	if got := resolveHealthCheckPort(0); got != 8080 {
+		t.Errorf("expected 8080 (default) on invalid env, got %d", got)
+	}
+}

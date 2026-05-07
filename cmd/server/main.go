@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
@@ -30,14 +31,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if flags.HealthCheck {
+		runHealthCheck(logger, resolveHealthCheckPort(flags.Port))
+	}
+
 	cfg, err := config.Load(flags.ConfigPath)
 	if err != nil {
 		logger.Error("Error loading config", "error", err)
 		os.Exit(1)
-	}
-
-	if flags.HealthCheck {
-		runHealthCheck(logger, cfg.Port)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -136,6 +137,20 @@ func main() {
 		logger.Error("Server forced to shutdown:", "error", err)
 		panic(err)
 	}
+}
+
+// resolveHealthCheckPort determines the port for the /healthz probe without
+// reading a config file. Precedence: --port flag > WL_PORT env > DefaultPort.
+func resolveHealthCheckPort(flagPort int) int {
+	if flagPort > 0 {
+		return flagPort
+	}
+	if v := os.Getenv("WL_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return config.DefaultPort
 }
 
 // probeHealth performs an HTTP GET to /healthz on the given port.
