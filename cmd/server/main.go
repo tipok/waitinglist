@@ -156,7 +156,7 @@ func resolveHealthCheckPort(flagPort int) int {
 // probeHealth performs an HTTP GET to /healthz on the given port.
 // Returns nil on HTTP 200, an error otherwise.
 func probeHealth(port int) error {
-	target := fmt.Sprintf("http://localhost:%d/healthz", port)
+	target := fmt.Sprintf("http://127.0.0.1:%d/healthz", port)
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(target) //nolint:noctx
 	if err != nil {
