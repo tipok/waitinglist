@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,7 +37,7 @@ func main() {
 	}
 
 	if flags.HealthCheck {
-		runHealthCheck(cfg.Port)
+		runHealthCheck(logger, cfg.Port)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -154,9 +155,9 @@ func probeHealth(port int) error {
 }
 
 // runHealthCheck calls probeHealth and exits with the appropriate code.
-func runHealthCheck(port int) {
+func runHealthCheck(logger *slog.Logger, port int) {
 	if err := probeHealth(port); err != nil {
-		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
+		logger.Error("health check failed", "error", err)
 		os.Exit(1)
 	}
 	os.Exit(0)
