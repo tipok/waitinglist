@@ -131,6 +131,7 @@ The application loads configuration from a JSON file passed via `--config` flag:
 | `19-dockerfile-healthcheck` | ✅ Complete | `HEALTHCHECK` in Dockerfile using a `--health-check` flag on the main binary (distroless-compatible) |
 | `20-healthcheck-config-decouple` | ✅ Complete | Stop requiring a config file in `--health-check` mode; resolve port via `--port` flag → `WL_PORT` env → default |
 | `21-healthcheck-ipv4-loopback` | ✅ Complete | Probe `127.0.0.1` instead of `localhost` so the IPv4-bound server is reachable in distroless containers |
+| `22-healthcheck-ipv4-bind` | ✅ Complete | Bind server to `0.0.0.0:port` explicitly so `127.0.0.1` health probe succeeds when `IPV6_V6ONLY=1` in distroless containers |
 
 ## Development Workflow
 

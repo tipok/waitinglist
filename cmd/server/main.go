@@ -106,7 +106,7 @@ func main() {
 
 	wrapped := handler.LoggingMiddleware(handler.JSONContentType(mux), logger)
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
 	logger.Info("Starting server", "addr", addr)
 
 	srv := &http.Server{
@@ -118,7 +118,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("Server listening on ", "address", addr)
+		logger.Info("Server listening on", "address", addr)
 		if err := srv.ListenAndServe(); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				logger.Error("Server forced to shutdown: ", "error", err)
