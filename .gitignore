@@ -34,3 +34,4 @@ bin/
 .idea/
 .vscode/
 conf/*.json
+.DS_Store
