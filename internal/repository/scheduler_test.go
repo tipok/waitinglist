@@ -8,8 +8,9 @@ import (
 func TestGetLastSuccess_NoRow(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
+	pid := defaultProjectID(t, db)
 
-	got, err := repo.GetLastSuccess(t.Context(), "nonexistent_key")
+	got, err := repo.GetLastSuccess(t.Context(), pid, "nonexistent_key")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -21,16 +22,17 @@ func TestGetLastSuccess_NoRow(t *testing.T) {
 func TestUpdateLastSuccess_InsertsAndReturnsTimestamp(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
+	pid := defaultProjectID(t, db)
 
 	key := "test_last_success"
 	before := time.Now().Add(-1 * time.Second)
 
-	err := repo.UpdateLastSuccess(t.Context(), db, key)
+	err := repo.UpdateLastSuccess(t.Context(), db, pid, key)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	got, err := repo.GetLastSuccess(t.Context(), key)
+	got, err := repo.GetLastSuccess(t.Context(), pid, key)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -45,15 +47,16 @@ func TestUpdateLastSuccess_InsertsAndReturnsTimestamp(t *testing.T) {
 func TestUpdateLastSuccess_UpsertUpdatesTimestamp(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
+	pid := defaultProjectID(t, db)
 
 	key := "test_upsert"
 
-	err := repo.UpdateLastSuccess(t.Context(), db, key)
+	err := repo.UpdateLastSuccess(t.Context(), db, pid, key)
 	if err != nil {
 		t.Fatalf("first update failed: %v", err)
 	}
 
-	first, err := repo.GetLastSuccess(t.Context(), key)
+	first, err := repo.GetLastSuccess(t.Context(), pid, key)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -61,12 +64,12 @@ func TestUpdateLastSuccess_UpsertUpdatesTimestamp(t *testing.T) {
 	// Small sleep to ensure timestamp differs
 	time.Sleep(10 * time.Millisecond)
 
-	err = repo.UpdateLastSuccess(t.Context(), db, key)
+	err = repo.UpdateLastSuccess(t.Context(), db, pid, key)
 	if err != nil {
 		t.Fatalf("second update failed: %v", err)
 	}
 
-	second, err := repo.GetLastSuccess(t.Context(), key)
+	second, err := repo.GetLastSuccess(t.Context(), pid, key)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -79,6 +82,7 @@ func TestUpdateLastSuccess_UpsertUpdatesTimestamp(t *testing.T) {
 func TestUpdateLastSuccess_RollbackOnTxFailure(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
+	pid := defaultProjectID(t, db)
 
 	key := "test_rollback"
 
@@ -87,7 +91,7 @@ func TestUpdateLastSuccess_RollbackOnTxFailure(t *testing.T) {
 		t.Fatalf("begin tx: %v", err)
 	}
 
-	err = repo.UpdateLastSuccess(t.Context(), tx, key)
+	err = repo.UpdateLastSuccess(t.Context(), tx, pid, key)
 	if err != nil {
 		t.Fatalf("update in tx failed: %v", err)
 	}
@@ -98,7 +102,7 @@ func TestUpdateLastSuccess_RollbackOnTxFailure(t *testing.T) {
 	}
 
 	// The value should not be persisted
-	got, err := repo.GetLastSuccess(t.Context(), key)
+	got, err := repo.GetLastSuccess(t.Context(), pid, key)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

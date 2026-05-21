@@ -74,16 +74,38 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	waitListRepo := repository.NewWaitingListRepository(db)
 	schedulerRepo := repository.NewSchedulerRepository(db)
+	projectRepo := repository.NewProjectRepository(db)
+
+	// Load projects for tenant resolution cache.
+	projects, err := projectRepo.GetAll(ctx)
+	if err != nil {
+		logger.Error("Error loading projects", "error", err)
+		os.Exit(1)
+	}
+	resolver := handler.NewProjectResolver(
+		cfg.Projects.HeaderName,
+		cfg.Projects.DefaultSlug,
+		cfg.Projects.HostMapping,
+		projects,
+		logger,
+	)
+
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
 	healthHandler := handler.NewHealthHandler(db, logger)
-	err = waitlist.Start(ctx, cfg, waitListRepo, userRepo, schedulerRepo)
+	err = waitlist.Start(ctx, cfg, projectRepo, waitListRepo, userRepo, schedulerRepo)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
 		os.Exit(1)
 	}
 
 	mux := http.NewServeMux()
-	waitListHandler.RegisterRoutes(mux)
+
+	// Tenant-scoped routes go through the project resolver middleware.
+	tenantMux := http.NewServeMux()
+	waitListHandler.RegisterRoutes(tenantMux)
+	mux.Handle("/waitinglist", resolver.Middleware(tenantMux))
+	mux.Handle("/waitinglist/", resolver.Middleware(tenantMux))
+
 	healthHandler.RegisterRoutes(mux)
 
 	adminUser := cfg.Admin.BasicAuth.Username
@@ -91,7 +113,7 @@ func main() {
 	if adminUser == "" || len(adminHash) == 0 {
 		logger.Warn("admin basic auth not configured; /admin routes disabled")
 	} else {
-		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, logger)
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projectRepo, logger)
 		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
 
 		adminMux := http.NewServeMux()

@@ -61,11 +61,22 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+func defaultProjectID(t *testing.T, db *sql.DB) string {
+	t.Helper()
+	var id string
+	err := db.QueryRow("SELECT id FROM project WHERE slug = 'default'").Scan(&id)
+	if err != nil {
+		t.Fatalf("failed to get default project id: %v", err)
+	}
+	return id
+}
+
 func TestCreate_InsertsUser(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: "John",
 		Lastname:  "Doe",
 		Email:     "john@example.com",
@@ -88,7 +99,8 @@ func TestCreate_DuplicateEmail(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: "John",
 		Lastname:  "Doe",
 		Email:     "dup@example.com",
@@ -98,7 +110,7 @@ func TestCreate_DuplicateEmail(t *testing.T) {
 		t.Fatalf("first create failed: %v", err)
 	}
 
-	user2 := &model.UserEntity{
+	user2 := &model.UserEntity{ProjectID: pid,
 		Firstname: "Jane",
 		Lastname:  "Smith",
 		Email:     "dup@example.com",
@@ -115,7 +127,8 @@ func TestCreate_MaxLengthFields(t *testing.T) {
 	repo := NewUserRepository(db)
 
 	long := strings.Repeat("a", 255)
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: long,
 		Lastname:  long,
 		Email:     long[:245] + "@test.com",
@@ -135,8 +148,9 @@ func TestGetByEmail_Found(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
+	pid := defaultProjectID(t, db)
 
-	original := &model.UserEntity{
+	original := &model.UserEntity{ProjectID: pid,
 		Firstname: "Alice",
 		Lastname:  "Wonder",
 		Email:     "alice@example.com",
@@ -145,7 +159,7 @@ func TestGetByEmail_Found(t *testing.T) {
 		t.Fatalf("create failed: %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "alice@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "alice@example.com")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -171,7 +185,7 @@ func TestGetByEmail_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	_, err := repo.GetByEmail(t.Context(), "nobody@example.com")
+	_, err := repo.GetByEmail(t.Context(), defaultProjectID(t, db), "nobody@example.com")
 	if !errors.Is(err, model.ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
@@ -182,7 +196,8 @@ func TestGetByEmail_CaseSensitive(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: "Bob",
 		Lastname:  "Smith",
 		Email:     "Bob@Example.com",
@@ -192,7 +207,7 @@ func TestGetByEmail_CaseSensitive(t *testing.T) {
 	}
 
 	// Exact case should be found.
-	found, err := repo.GetByEmail(ctx, "Bob@Example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "Bob@Example.com")
 	if err != nil {
 		t.Fatalf("expected no error for exact case, got %v", err)
 	}
@@ -201,7 +216,7 @@ func TestGetByEmail_CaseSensitive(t *testing.T) {
 	}
 
 	// Different case should not be found (PostgreSQL is case-sensitive by default).
-	_, err = repo.GetByEmail(ctx, "bob@example.com")
+	_, err = repo.GetByEmail(ctx, defaultProjectID(t, db), "bob@example.com")
 	if !errors.Is(err, model.ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound for different case, got %v", err)
 	}
@@ -211,7 +226,8 @@ func TestCreate_PopulatesAllFields(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: "Test",
 		Lastname:  "User",
 		Email:     "fields@example.com",
@@ -222,7 +238,7 @@ func TestCreate_PopulatesAllFields(t *testing.T) {
 	}
 
 	// Verify by reading back.
-	found, err := repo.GetByEmail(context.Background(), "fields@example.com")
+	found, err := repo.GetByEmail(context.Background(), pid, "fields@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -249,7 +265,8 @@ func TestSetHasAccess_SingleUser(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid,
 		Firstname: "Grant",
 		Lastname:  "Access",
 		Email:     "grant@example.com",
@@ -262,7 +279,7 @@ func TestSetHasAccess_SingleUser(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "grant@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "grant@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -297,7 +314,7 @@ func TestSetHasAccess_MultipleUsers(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	found1, err := repo.GetByEmail(ctx, "user1@example.com")
+	found1, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "user1@example.com")
 	if err != nil {
 		t.Fatalf("get user1 failed: %v", err)
 	}
@@ -305,7 +322,7 @@ func TestSetHasAccess_MultipleUsers(t *testing.T) {
 		t.Error("expected user1 has_access to be true")
 	}
 
-	found2, err := repo.GetByEmail(ctx, "user2@example.com")
+	found2, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "user2@example.com")
 	if err != nil {
 		t.Fatalf("get user2 failed: %v", err)
 	}
@@ -342,7 +359,8 @@ func TestHasAccessOneWayTrigger_DroppedByMigration007(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Raw", Lastname: "Update", Email: "raw@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Raw", Lastname: "Update", Email: "raw@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -362,7 +380,8 @@ func TestGrantAccessTx_PopulatesAuditColumns(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Granted", Lastname: "Audit", Email: "granted@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Granted", Lastname: "Audit", Email: "granted@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -371,7 +390,7 @@ func TestGrantAccessTx_PopulatesAuditColumns(t *testing.T) {
 		t.Fatalf("grant access failed: %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "granted@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "granted@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -394,7 +413,8 @@ func TestGrantAccessTx_AdminSource(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Admin", Lastname: "Granted", Email: "admingrant@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Admin", Lastname: "Granted", Email: "admingrant@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -403,7 +423,7 @@ func TestGrantAccessTx_AdminSource(t *testing.T) {
 		t.Fatalf("grant access failed: %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "admingrant@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "admingrant@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -417,7 +437,8 @@ func TestGrantAccessTx_RejectsUnknownSource(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Bad", Lastname: "Source", Email: "badsrc@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Bad", Lastname: "Source", Email: "badsrc@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -430,7 +451,7 @@ func TestGrantAccessTx_RejectsUnknownSource(t *testing.T) {
 		t.Errorf("expected error mentioning invalid grant source, got %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "badsrc@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "badsrc@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -444,7 +465,8 @@ func TestRevokeAccessTx_PopulatesAuditAndFlipsFlag(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Revoked", Lastname: "User", Email: "revoked@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Revoked", Lastname: "User", Email: "revoked@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -456,7 +478,7 @@ func TestRevokeAccessTx_PopulatesAuditAndFlipsFlag(t *testing.T) {
 		t.Fatalf("revoke access failed: %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "revoked@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "revoked@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -479,7 +501,8 @@ func TestRevokeAccessTx_EmptyReasonRejected(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Empty", Lastname: "Reason", Email: "empty@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Empty", Lastname: "Reason", Email: "empty@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -492,7 +515,7 @@ func TestRevokeAccessTx_EmptyReasonRejected(t *testing.T) {
 		t.Fatalf("expected ErrRevokeReasonRequired, got %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "empty@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "empty@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -516,7 +539,8 @@ func TestGrantAccessTx_ClearsPriorRevocation(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Re", Lastname: "Granted", Email: "regranted@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Re", Lastname: "Granted", Email: "regranted@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -530,7 +554,7 @@ func TestGrantAccessTx_ClearsPriorRevocation(t *testing.T) {
 		t.Fatalf("re-grant failed: %v", err)
 	}
 
-	found, err := repo.GetByEmail(ctx, "regranted@example.com")
+	found, err := repo.GetByEmail(ctx, defaultProjectID(t, db), "regranted@example.com")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -547,7 +571,8 @@ func TestGetUserInfoByEmails_IncludesRevokeReason(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Lookup", Lastname: "Revoked", Email: "lookup@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Lookup", Lastname: "Revoked", Email: "lookup@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
@@ -558,7 +583,7 @@ func TestGetUserInfoByEmails_IncludesRevokeReason(t *testing.T) {
 		t.Fatalf("revoke failed: %v", err)
 	}
 
-	infos, err := repo.GetUserInfoByEmails(ctx, []string{"lookup@example.com"})
+	infos, err := repo.GetUserInfoByEmails(ctx, defaultProjectID(t, db), []string{"lookup@example.com"})
 	if err != nil {
 		t.Fatalf("get user info failed: %v", err)
 	}
@@ -582,7 +607,8 @@ func TestRevokePairCheckConstraint(t *testing.T) {
 	repo := NewUserRepository(db)
 	ctx := t.Context()
 
-	user := &model.UserEntity{Firstname: "Pair", Lastname: "Check", Email: "pair@example.com"}
+	pid := defaultProjectID(t, db)
+	user := &model.UserEntity{ProjectID: pid, Firstname: "Pair", Lastname: "Check", Email: "pair@example.com"}
 	if err := repo.Create(ctx, user); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}

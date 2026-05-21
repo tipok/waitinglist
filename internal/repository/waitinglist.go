@@ -22,19 +22,20 @@ func NewWaitingListRepository(db *sql.DB) *WaitingListRepository {
 	return &WaitingListRepository{db: db}
 }
 
-// Add inserts a new entry into the waiting_list table for the given user ID.
-// Returns model.ErrAlreadyOnWaitingList if the user is already on the list.
-// Returns model.ErrWaitingListForeignKey if the user ID does not exist.
+// Add inserts a new entry into the waiting_list table for the given user ID
+// and project. Returns model.ErrAlreadyOnWaitingList if the user is already
+// on the list. Returns model.ErrWaitingListForeignKey if the user ID does not
+// exist.
 //
 //goland:noinspection ALL
-func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error) {
-	query := `INSERT INTO waiting_list (user_id)
-		VALUES ($1)
-		RETURNING id, user_id, created_at`
+func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, projectID, userID string) (*model.WaitingListEntry, error) {
+	query := `INSERT INTO waiting_list (project_id, user_id)
+		VALUES ($1, $2)
+		RETURNING id, project_id, user_id, created_at`
 
 	entry := &model.WaitingListEntry{}
-	err := tx.QueryRowContext(ctx, query, userID).
-		Scan(&entry.ID, &entry.UserID, &entry.CreatedAt)
+	err := tx.QueryRowContext(ctx, query, projectID, userID).
+		Scan(&entry.ID, &entry.ProjectID, &entry.UserID, &entry.CreatedAt)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) {
@@ -52,14 +53,15 @@ func (r *WaitingListRepository) Add(ctx context.Context, tx model.DBTX, userID s
 }
 
 // GetAll returns all waiting list entries ordered by created_at ascending.
-func (r *WaitingListRepository) GetAll(ctx context.Context) ([]model.WaitingListEntry, error) {
-	return r.GetWithOffsetLimit(ctx, nil, nil)
+func (r *WaitingListRepository) GetAll(ctx context.Context, projectID string) ([]model.WaitingListEntry, error) {
+	return r.GetWithOffsetLimit(ctx, projectID, nil, nil)
 }
 
 //goland:noinspection ALL
-func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, limit *int) ([]model.WaitingListEntry, error) {
-	query := `SELECT id, user_id, created_at, weighted_created_at
+func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, projectID string, offset, limit *int) ([]model.WaitingListEntry, error) {
+	query := `SELECT id, project_id, user_id, created_at, weighted_created_at
 		FROM waiting_list
+		WHERE project_id = $1
 		ORDER BY weighted_created_at ASC`
 
 	if offset != nil {
@@ -70,7 +72,7 @@ func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, 
 		query += fmt.Sprintf(" LIMIT %d", *limit)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("querying waiting list: %w", err)
 	}
@@ -84,7 +86,7 @@ func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, offset, 
 	entries := make([]model.WaitingListEntry, 0)
 	for rows.Next() {
 		var entry model.WaitingListEntry
-		if err := rows.Scan(&entry.ID, &entry.UserID, &entry.CreatedAt, &entry.WeightedCreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.ProjectID, &entry.UserID, &entry.CreatedAt, &entry.WeightedCreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning waiting list entry: %w", err)
 		}
 		entries = append(entries, entry)
@@ -130,21 +132,23 @@ func (r *WaitingListRepository) BeginTx(ctx context.Context) (model.Tx, error) {
 }
 
 // ListJoined returns waiting-list rows joined to their user, optionally
-// filtered by a case-insensitive email substring. Ordered by
+// filtered by a case-insensitive email substring and/or project. Ordered by
 // weighted_created_at ascending (queue order) then by email for stability.
+// When projectID is empty, rows from all projects are returned.
 //
 //goland:noinspection ALL
-func (r *WaitingListRepository) ListJoined(ctx context.Context, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
+func (r *WaitingListRepository) ListJoined(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
 	const query = `
-		SELECT wl.id, wl.user_id, ue.email, ue.firstname, ue.lastname,
+		SELECT wl.id, wl.project_id, wl.user_id, ue.email, ue.firstname, ue.lastname,
 		       wl.weight, wl.created_at, wl.weighted_created_at
 		FROM   waiting_list wl
 		JOIN   user_entity  ue ON ue.id = wl.user_id
-		WHERE  ($1 = '' OR ue.email ILIKE '%' || $1 || '%')
+		WHERE  ($1 = '' OR wl.project_id = $1::uuid)
+		  AND  ($2 = '' OR ue.email ILIKE '%' || $2 || '%')
 		ORDER  BY wl.weighted_created_at ASC, ue.email ASC
-		LIMIT  $2 OFFSET $3`
+		LIMIT  $3 OFFSET $4`
 
-	rows, err := r.db.QueryContext(ctx, query, emailLike, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, projectID, emailLike, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing waiting list joined: %w", err)
 	}
@@ -156,7 +160,7 @@ func (r *WaitingListRepository) ListJoined(ctx context.Context, emailLike string
 	for rows.Next() {
 		var row model.WaitingListAdminRow
 		if err := rows.Scan(
-			&row.EntryID, &row.UserID, &row.Email, &row.Firstname, &row.Lastname,
+			&row.EntryID, &row.ProjectID, &row.UserID, &row.Email, &row.Firstname, &row.Lastname,
 			&row.Weight, &row.CreatedAt, &row.WeightedCreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scanning waiting list joined row: %w", err)

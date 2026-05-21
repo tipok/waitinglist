@@ -4,6 +4,7 @@ const PAGE_SIZE_DEFAULT = 50;
 
 const state = {
   tab: "dashboard",
+  project: "",
   access:   { search: "", limit: PAGE_SIZE_DEFAULT, offset: 0, lastCount: 0 },
   waitlist: { search: "", limit: PAGE_SIZE_DEFAULT, offset: 0, lastCount: 0 },
 };
@@ -12,7 +13,7 @@ let modalCallback = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
-function init() {
+async function init() {
   document.querySelectorAll("#tabs .tab").forEach(btn => {
     btn.addEventListener("click", () => setTab(btn.dataset.tab, true));
   });
@@ -29,9 +30,40 @@ function init() {
     document.getElementById("modal-reason-count").textContent = e.target.value.length;
   });
 
+  await loadProjectFilter();
+
   // Pick up the active tab from the URL hash, if any.
   const initialTab = (location.hash.match(/tab=([\w-]+)/) || [])[1] || "dashboard";
   setTab(initialTab, false);
+}
+
+async function loadProjectFilter() {
+  const select = document.getElementById("project-filter");
+  if (!select) return;
+  try {
+    const projects = await apiFetch("GET", "/admin/projects");
+    select.innerHTML = '<option value="">All projects</option>';
+    for (const p of projects) {
+      const opt = document.createElement("option");
+      opt.value = p.slug;
+      opt.textContent = `${p.name} (${p.slug})`;
+      select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+      state.project = select.value;
+      refreshCurrentTab();
+    });
+  } catch (_) { /* project filter is optional */ }
+}
+
+function projectParam() {
+  return state.project ? `&project=${encodeURIComponent(state.project)}` : "";
+}
+
+function refreshCurrentTab() {
+  if      (state.tab === "dashboard") loadDashboard();
+  else if (state.tab === "access")    loadAccess();
+  else if (state.tab === "waitlist")  loadWaitlist();
 }
 
 function bindList(name, loader) {
@@ -84,7 +116,7 @@ function setTab(name, updateHash) {
 async function loadDashboard() {
   const days = document.getElementById("dashboard-days").value;
   try {
-    const data = await apiFetch("GET", `/admin/dashboard?days=${encodeURIComponent(days)}`);
+    const data = await apiFetch("GET", `/admin/dashboard?days=${encodeURIComponent(days)}${projectParam()}`);
     document.getElementById("count-waitlist").textContent = data.waiting_list;
     document.getElementById("count-access").textContent   = data.with_access;
     document.getElementById("count-total").textContent    = data.total;
@@ -168,7 +200,7 @@ function renderChart(svg, data) {
 
 async function loadAccess() {
   const s = state.access;
-  const url = `/admin/users/access?email=${encodeURIComponent(s.search)}&limit=${s.limit}&offset=${s.offset}`;
+  const url = `/admin/users/access?email=${encodeURIComponent(s.search)}&limit=${s.limit}&offset=${s.offset}${projectParam()}`;
   try {
     const data = await apiFetch("GET", url);
     s.lastCount = data.users.length;
@@ -234,7 +266,7 @@ function renderAccessRows(users) {
 
 async function loadWaitlist() {
   const s = state.waitlist;
-  const url = `/admin/users/waitlist?email=${encodeURIComponent(s.search)}&limit=${s.limit}&offset=${s.offset}`;
+  const url = `/admin/users/waitlist?email=${encodeURIComponent(s.search)}&limit=${s.limit}&offset=${s.offset}${projectParam()}`;
   try {
     const data = await apiFetch("GET", url);
     s.lastCount = data.entries.length;

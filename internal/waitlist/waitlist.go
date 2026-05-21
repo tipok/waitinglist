@@ -6,6 +6,7 @@ import (
 
 	"github.com/tipok/waitinglist/internal/config"
 	lg "github.com/tipok/waitinglist/internal/logger"
+	"github.com/tipok/waitinglist/internal/model"
 	"github.com/tipok/waitinglist/internal/repository"
 )
 
@@ -14,6 +15,7 @@ const schedulerKeyWaitlistLastSuccess = "waitlist_last_success"
 func Start(
 	ctx context.Context,
 	cfg *config.Config,
+	projectRepo *repository.ProjectRepository,
 	waitingListRepo *repository.WaitingListRepository,
 	userRepo *repository.UserRepository,
 	schedulerRepo *repository.SchedulerRepository,
@@ -21,30 +23,43 @@ func Start(
 	logger := lg.NewLogger()
 
 	if cfg.SchedulerInterval.Disabled {
-		logger.Info("scheduler disabled, skipping")
+		logger.Info("scheduler disabled globally, skipping")
 		return nil
 	}
 
-	checkEntries := func() {
-		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, schedulerKeyWaitlistLastSuccess)
-		if err != nil {
-			logger.Error("failed to get last success", "error", err)
-			return
-		}
-		if !lastSuccess.IsZero() && time.Since(lastSuccess) < cfg.Waitlist.EntryWindowInterval {
-			logger.Info("entry window interval not elapsed, skipping", "lastSuccess", lastSuccess)
+	processProject := func(p model.Project) {
+		if p.SchedulerDisabled {
 			return
 		}
 
-		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, nil, &cfg.Waitlist.EntryBatchSize)
+		batchSize := cfg.Waitlist.EntryBatchSize
+		if p.EntryBatchSize != nil {
+			batchSize = *p.EntryBatchSize
+		}
+
+		windowInterval := cfg.Waitlist.EntryWindowInterval
+		if p.EntryWindowInterval != nil {
+			windowInterval = *p.EntryWindowInterval
+		}
+
+		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, p.ID, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
-			logger.Error("failed to get waiting list", "error", err)
+			logger.Error("failed to get last success", "error", err, "project", p.Slug)
+			return
+		}
+		if !lastSuccess.IsZero() && time.Since(lastSuccess) < windowInterval {
+			return
+		}
+
+		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, p.ID, nil, &batchSize)
+		if err != nil {
+			logger.Error("failed to get waiting list", "error", err, "project", p.Slug)
 			return
 		}
 		usersToAllow := make([]string, 0, len(entries))
 		waitingListIds := make([]string, 0, len(entries))
 		for _, entry := range entries {
-			if time.Since(entry.WeightedCreatedAt) < cfg.Waitlist.EntryWindowInterval {
+			if time.Since(entry.WeightedCreatedAt) < windowInterval {
 				continue
 			}
 			usersToAllow = append(usersToAllow, entry.UserID)
@@ -57,19 +72,33 @@ func Start(
 
 		err = userRepo.GrantAccess(ctx, usersToAllow, "scheduler")
 		if err != nil {
-			logger.Error("failed to grant access", "error", err)
+			logger.Error("failed to grant access", "error", err, "project", p.Slug)
 			return
 		}
 
 		err = waitingListRepo.DeleteByIDs(ctx, waitingListIds)
 		if err != nil {
-			logger.Error("failed to delete waiting list entries", "error", err)
+			logger.Error("failed to delete waiting list entries", "error", err, "project", p.Slug)
 			return
 		}
 
-		err = schedulerRepo.UpdateLastSuccess(ctx, schedulerRepo.DB(), schedulerKeyWaitlistLastSuccess)
+		err = schedulerRepo.UpdateLastSuccess(ctx, schedulerRepo.DB(), p.ID, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
-			logger.Error("failed to update last success", "error", err)
+			logger.Error("failed to update last success", "error", err, "project", p.Slug)
+		}
+
+		logger.Info("scheduler batch processed",
+			"project", p.Slug, "granted", len(usersToAllow))
+	}
+
+	checkAllProjects := func() {
+		projects, err := projectRepo.GetAll(ctx)
+		if err != nil {
+			logger.Error("scheduler: failed to load projects", "error", err)
+			return
+		}
+		for _, p := range projects {
+			processProject(p)
 		}
 	}
 
@@ -80,9 +109,9 @@ func Start(
 		for {
 			select {
 			case <-immediately:
-				checkEntries()
+				checkAllProjects()
 			case <-ticker.C:
-				checkEntries()
+				checkAllProjects()
 			case <-ctx.Done():
 				ticker.Stop()
 				return

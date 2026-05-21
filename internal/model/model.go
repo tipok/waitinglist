@@ -32,11 +32,26 @@ var (
 	ErrAlreadyHasAccess         = errors.New("user already has access")
 	ErrRevokeReasonRequired     = errors.New("access revoke reason is required")
 	ErrWaitingListEntryNotFound = errors.New("waiting list entry not found")
+	ErrProjectNotFound          = errors.New("project not found")
+	ErrDuplicateProjectSlug     = errors.New("project slug already exists")
 )
+
+// Project represents a tenant project stored in the project table.
+type Project struct {
+	ID                    string         `json:"id"`
+	Slug                  string         `json:"slug"`
+	Name                  string         `json:"name"`
+	EntryBatchSize        *int           `json:"entry_batch_size,omitzero"`
+	EntryWindowInterval   *time.Duration `json:"entry_window_interval,omitzero"`
+	WaitlistCheckInterval *time.Duration `json:"waitlist_check_interval,omitzero"`
+	SchedulerDisabled     bool           `json:"scheduler_disabled"`
+	CreatedAt             time.Time      `json:"created_at"`
+}
 
 // UserEntity represents a user stored in the user_entity table.
 type UserEntity struct {
 	ID                 string     `json:"id"`
+	ProjectID          string     `json:"project_id"`
 	Firstname          string     `json:"firstname"`
 	Lastname           string     `json:"lastname"`
 	Email              string     `json:"email"`
@@ -54,6 +69,7 @@ type UserEntity struct {
 // (GET /waitinglist/users). The admin identifier (access_revoked_by) is
 // deliberately omitted so the public endpoint does not leak it.
 type UserInfo struct {
+	ProjectID          string     `json:"project_id"`
 	Firstname          string     `json:"firstname"`
 	Lastname           string     `json:"lastname"`
 	Email              string     `json:"email"`
@@ -73,6 +89,7 @@ type UserInfoList struct {
 // WaitingListEntry represents an entry in the waiting_list table.
 type WaitingListEntry struct {
 	ID                string    `json:"id"`
+	ProjectID         string    `json:"project_id"`
 	UserID            string    `json:"user_id"`
 	CreatedAt         time.Time `json:"created_at"`
 	WeightedCreatedAt time.Time `json:"weighted_created_at"`
@@ -89,6 +106,7 @@ type DayCount struct {
 // render rows in a single round trip.
 type WaitingListAdminRow struct {
 	EntryID           string    `json:"entry_id"`
+	ProjectID         string    `json:"project_id"`
 	UserID            string    `json:"user_id"`
 	Email             string    `json:"email"`
 	Firstname         string    `json:"firstname"`

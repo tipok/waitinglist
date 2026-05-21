@@ -30,14 +30,14 @@ func buildAdminServer(t *testing.T, username, password string) http.Handler {
 	}
 
 	us := &fakeAdminUserStore{
-		countByAccessFn: func(_ context.Context) (int, int, error) { return 1, 2, nil },
-		enlistmentsByDayFn: func(_ context.Context, _ int) ([]model.DayCount, error) {
+		countByAccessFn: func(_ context.Context, _ string) (int, int, error) { return 1, 2, nil },
+		enlistmentsByDayFn: func(_ context.Context, _ string, _ int) ([]model.DayCount, error) {
 			return []model.DayCount{}, nil
 		},
 	}
 	ws := &fakeAdminWaitlistStore{}
 
-	adminHandler := NewAdminHandler(us, ws, logger)
+	adminHandler := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, logger)
 	auth := BasicAuthMiddleware(username, hash, "test", logger)
 
 	adminMux := http.NewServeMux()

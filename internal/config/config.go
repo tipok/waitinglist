@@ -19,6 +19,8 @@ const (
 	DefaultEntryBatchSize        = 25
 	DefaultEntryWindowInterval   = 30 * time.Hour
 	DefaultWaitlistCheckInterval = 1 * time.Hour
+	DefaultProjectHeaderName     = "X-Project-ID"
+	DefaultProjectSlug           = "default"
 )
 
 type Config struct {
@@ -27,6 +29,14 @@ type Config struct {
 	Waitlist          WaitlistConfig          `koanf:"waitlist"`
 	SchedulerInterval SchedulerIntervalConfig `koanf:"schedulerInterval"`
 	Admin             AdminConfig             `koanf:"admin"`
+	Projects          ProjectsConfig          `koanf:"projects"`
+}
+
+// ProjectsConfig configures multi-tenancy project resolution.
+type ProjectsConfig struct {
+	HeaderName  string            `koanf:"headerName"`
+	DefaultSlug string            `koanf:"defaultSlug"`
+	HostMapping map[string]string `koanf:"hostMapping"`
 }
 
 // AdminConfig configures the protected /admin/* routes. When BasicAuth is
@@ -111,6 +121,10 @@ func Load(path string) (*Config, error) {
 			Disabled:              false,
 			WaitlistCheckInterval: DefaultWaitlistCheckInterval,
 		},
+		Projects: ProjectsConfig{
+			HeaderName:  DefaultProjectHeaderName,
+			DefaultSlug: DefaultProjectSlug,
+		},
 	}
 
 	if err := k.Unmarshal("", cfg); err != nil {
@@ -134,6 +148,12 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.SchedulerInterval.WaitlistCheckInterval == 0 {
 		cfg.SchedulerInterval.WaitlistCheckInterval = DefaultWaitlistCheckInterval
+	}
+	if cfg.Projects.HeaderName == "" {
+		cfg.Projects.HeaderName = DefaultProjectHeaderName
+	}
+	if cfg.Projects.DefaultSlug == "" {
+		cfg.Projects.DefaultSlug = DefaultProjectSlug
 	}
 
 	return cfg, nil

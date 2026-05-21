@@ -16,22 +16,22 @@ import (
 )
 
 type fakeAdminUserStore struct {
-	countByAccessFn    func(ctx context.Context) (int, int, error)
-	enlistmentsByDayFn func(ctx context.Context, days int) ([]model.DayCount, error)
-	listWithAccessFn   func(ctx context.Context, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	countByAccessFn    func(ctx context.Context, projectID string) (int, int, error)
+	enlistmentsByDayFn func(ctx context.Context, projectID string, days int) ([]model.DayCount, error)
+	listWithAccessFn   func(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error)
 	getByIDFn          func(ctx context.Context, id string) (*model.UserEntity, error)
 	grantAccessTxFn    func(ctx context.Context, tx model.DBTX, ids []string, source string) error
 	revokeAccessFn     func(ctx context.Context, id, reason, by string) error
 }
 
-func (f *fakeAdminUserStore) CountByAccess(ctx context.Context) (int, int, error) {
-	return f.countByAccessFn(ctx)
+func (f *fakeAdminUserStore) CountByAccess(ctx context.Context, projectID string) (int, int, error) {
+	return f.countByAccessFn(ctx, projectID)
 }
-func (f *fakeAdminUserStore) EnlistmentsByDay(ctx context.Context, days int) ([]model.DayCount, error) {
-	return f.enlistmentsByDayFn(ctx, days)
+func (f *fakeAdminUserStore) EnlistmentsByDay(ctx context.Context, projectID string, days int) ([]model.DayCount, error) {
+	return f.enlistmentsByDayFn(ctx, projectID, days)
 }
-func (f *fakeAdminUserStore) ListWithAccess(ctx context.Context, emailLike string, limit, offset int) ([]model.UserEntity, error) {
-	return f.listWithAccessFn(ctx, emailLike, limit, offset)
+func (f *fakeAdminUserStore) ListWithAccess(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error) {
+	return f.listWithAccessFn(ctx, projectID, emailLike, limit, offset)
 }
 func (f *fakeAdminUserStore) GetByID(ctx context.Context, id string) (*model.UserEntity, error) {
 	return f.getByIDFn(ctx, id)
@@ -44,14 +44,14 @@ func (f *fakeAdminUserStore) RevokeAccess(ctx context.Context, id, reason, by st
 }
 
 type fakeAdminWaitlistStore struct {
-	listJoinedFn       func(ctx context.Context, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	listJoinedFn       func(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
 	deleteByIDFn       func(ctx context.Context, id string) error
 	deleteByUserIDTxFn func(ctx context.Context, tx model.DBTX, userID string) error
 	beginTxFn          func(ctx context.Context) (model.Tx, error)
 }
 
-func (f *fakeAdminWaitlistStore) ListJoined(ctx context.Context, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
-	return f.listJoinedFn(ctx, emailLike, limit, offset)
+func (f *fakeAdminWaitlistStore) ListJoined(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
+	return f.listJoinedFn(ctx, projectID, emailLike, limit, offset)
 }
 func (f *fakeAdminWaitlistStore) DeleteByID(ctx context.Context, id string) error {
 	return f.deleteByIDFn(ctx, id)
@@ -63,9 +63,23 @@ func (f *fakeAdminWaitlistStore) BeginTx(ctx context.Context) (model.Tx, error) 
 	return f.beginTxFn(ctx)
 }
 
+type fakeAdminProjectStore struct{}
+
+func (f *fakeAdminProjectStore) GetAll(_ context.Context) ([]model.Project, error) {
+	return []model.Project{}, nil
+}
+func (f *fakeAdminProjectStore) GetBySlug(_ context.Context, _ string) (*model.Project, error) {
+	return nil, model.ErrProjectNotFound
+}
+func (f *fakeAdminProjectStore) GetByID(_ context.Context, _ string) (*model.Project, error) {
+	return nil, model.ErrProjectNotFound
+}
+func (f *fakeAdminProjectStore) Create(_ context.Context, _ *model.Project) error { return nil }
+func (f *fakeAdminProjectStore) Update(_ context.Context, _ *model.Project) error { return nil }
+
 func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHandler, *http.ServeMux) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewAdminHandler(us, ws, logger)
+	h := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, logger)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	return h, mux
@@ -73,8 +87,8 @@ func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHan
 
 func TestAdmin_Dashboard_HappyPath(t *testing.T) {
 	us := &fakeAdminUserStore{
-		countByAccessFn: func(_ context.Context) (int, int, error) { return 7, 3, nil },
-		enlistmentsByDayFn: func(_ context.Context, days int) ([]model.DayCount, error) {
+		countByAccessFn: func(_ context.Context, _ string) (int, int, error) { return 7, 3, nil },
+		enlistmentsByDayFn: func(_ context.Context, _ string, days int) ([]model.DayCount, error) {
 			if days != defaultDashboardDays {
 				t.Fatalf("expected default days, got %d", days)
 			}
@@ -140,7 +154,7 @@ func TestAdmin_ListWithAccess_PassesFilters(t *testing.T) {
 	var gotEmail string
 	var gotLimit, gotOffset int
 	us := &fakeAdminUserStore{
-		listWithAccessFn: func(_ context.Context, emailLike string, limit, offset int) ([]model.UserEntity, error) {
+		listWithAccessFn: func(_ context.Context, _, emailLike string, limit, offset int) ([]model.UserEntity, error) {
 			gotEmail, gotLimit, gotOffset = emailLike, limit, offset
 			return []model.UserEntity{{ID: "u1", Email: "alice@example.com", HasAccess: true}}, nil
 		},
@@ -185,7 +199,7 @@ func TestAdmin_ListWaitlist_NegativeOffset(t *testing.T) {
 
 func TestAdmin_ListWaitlist_HappyPath(t *testing.T) {
 	ws := &fakeAdminWaitlistStore{
-		listJoinedFn: func(_ context.Context, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
+		listJoinedFn: func(_ context.Context, _, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
 			return []model.WaitingListAdminRow{{
 				EntryID: "wl1", UserID: "u1", Email: "bob@example.com",
 				Firstname: "Bob", Lastname: "S", Weight: 3,

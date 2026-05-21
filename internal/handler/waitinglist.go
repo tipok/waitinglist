@@ -14,14 +14,14 @@ import (
 // WaitingListUserStore defines user persistence operations needed by the waiting list handler.
 type WaitingListUserStore interface {
 	CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
-	GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error)
-	GetUserInfoByEmails(ctx context.Context, emails []string) ([]model.UserInfo, error)
+	GetByEmailTx(ctx context.Context, tx model.DBTX, projectID, email string) (*model.UserEntity, error)
+	GetUserInfoByEmails(ctx context.Context, projectID string, emails []string) ([]model.UserInfo, error)
 }
 
 // WaitingListStore defines waiting list persistence operations.
 type WaitingListStore interface {
-	Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error)
-	GetAll(ctx context.Context) ([]model.WaitingListEntry, error)
+	Add(ctx context.Context, tx model.DBTX, projectID, userID string) (*model.WaitingListEntry, error)
+	GetAll(ctx context.Context, projectID string) ([]model.WaitingListEntry, error)
 	BeginTx(ctx context.Context) (model.Tx, error)
 }
 
@@ -60,6 +60,12 @@ type addToWaitingListResponse struct {
 }
 
 func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
+	project := ProjectFromContext(r.Context())
+	if project == nil {
+		WriteError(w, http.StatusBadRequest, "project identification required", h.logger)
+		return
+	}
+
 	var req addToWaitingListRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid JSON body", h.logger)
@@ -84,7 +90,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Look up or create user entity within the transaction.
-	user, err := h.userStore.GetByEmailTx(ctx, tx, req.Email)
+	user, err := h.userStore.GetByEmailTx(ctx, tx, project.ID, req.Email)
 	if err != nil {
 		if !errors.Is(err, model.ErrUserNotFound) {
 			h.logger.Error("Failed to look up user by email", "error", err)
@@ -95,6 +101,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 		// User does not exist — create a new one.
 		ip := ClientIP(r)
 		user = &model.UserEntity{
+			ProjectID: project.ID,
 			Firstname: req.Firstname,
 			Lastname:  req.Lastname,
 			Email:     req.Email,
@@ -116,7 +123,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add user to the waiting list.
-	entry, err := h.waitListStore.Add(ctx, tx, user.ID)
+	entry, err := h.waitListStore.Add(ctx, tx, project.ID, user.ID)
 	if err != nil {
 		if errors.Is(err, model.ErrAlreadyOnWaitingList) {
 			WriteError(w, http.StatusConflict, "user is already on the waiting list", h.logger)
@@ -140,7 +147,13 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WaitingListHandler) handleGetAll(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.waitListStore.GetAll(r.Context())
+	project := ProjectFromContext(r.Context())
+	if project == nil {
+		WriteError(w, http.StatusBadRequest, "project identification required", h.logger)
+		return
+	}
+
+	entries, err := h.waitListStore.GetAll(r.Context(), project.ID)
 	if err != nil {
 		h.logger.Error("Failed to get waiting list entries", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
@@ -151,6 +164,12 @@ func (h *WaitingListHandler) handleGetAll(w http.ResponseWriter, r *http.Request
 }
 
 func (h *WaitingListHandler) handleGetUsersByEmail(w http.ResponseWriter, r *http.Request) {
+	project := ProjectFromContext(r.Context())
+	if project == nil {
+		WriteError(w, http.StatusBadRequest, "project identification required", h.logger)
+		return
+	}
+
 	emails := r.URL.Query()["email"]
 	if len(emails) == 0 {
 		WriteError(w, http.StatusBadRequest, "email query parameter is required", h.logger)
@@ -170,7 +189,7 @@ func (h *WaitingListHandler) handleGetUsersByEmail(w http.ResponseWriter, r *htt
 		}
 	}
 
-	users, err := h.userStore.GetUserInfoByEmails(r.Context(), emails)
+	users, err := h.userStore.GetUserInfoByEmails(r.Context(), project.ID, emails)
 	if err != nil {
 		h.logger.Error("Failed to get users by email", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)

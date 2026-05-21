@@ -25,15 +25,15 @@ func (r *SchedulerRepository) DB() *sql.DB {
 	return r.db
 }
 
-// GetLastSuccess returns the stored timestamp for the given key.
-// Returns a zero time.Time and nil error if no row exists.
+// GetLastSuccess returns the stored timestamp for the given key scoped to a
+// project. Returns a zero time.Time and nil error if no row exists.
 //
 //goland:noinspection ALL
-func (r *SchedulerRepository) GetLastSuccess(ctx context.Context, key string) (time.Time, error) {
-	query := `SELECT value FROM scheduler_state WHERE key = $1`
+func (r *SchedulerRepository) GetLastSuccess(ctx context.Context, projectID, key string) (time.Time, error) {
+	query := `SELECT value FROM scheduler_state WHERE project_id = $1 AND key = $2`
 
 	var t time.Time
-	err := r.db.QueryRowContext(ctx, query, key).Scan(&t)
+	err := r.db.QueryRowContext(ctx, query, projectID, key).Scan(&t)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return time.Time{}, nil
@@ -44,15 +44,15 @@ func (r *SchedulerRepository) GetLastSuccess(ctx context.Context, key string) (t
 	return t, nil
 }
 
-// UpdateLastSuccess upserts the row for the given key to NOW().
+// UpdateLastSuccess upserts the row for the given key and project to NOW().
 //
 //goland:noinspection ALL
-func (r *SchedulerRepository) UpdateLastSuccess(ctx context.Context, tx model.DBTX, key string) error {
-	query := `INSERT INTO scheduler_state (key, value)
-		VALUES ($1, NOW())
-		ON CONFLICT (key) DO UPDATE SET value = NOW()`
+func (r *SchedulerRepository) UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectID, key string) error {
+	query := `INSERT INTO scheduler_state (project_id, key, value)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (project_id, key) DO UPDATE SET value = NOW()`
 
-	_, err := tx.ExecContext(ctx, query, key)
+	_, err := tx.ExecContext(ctx, query, projectID, key)
 	if err != nil {
 		return fmt.Errorf("upserting scheduler state: %w", err)
 	}

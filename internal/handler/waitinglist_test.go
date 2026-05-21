@@ -47,43 +47,45 @@ func (f *fakeTx) Rollback() error {
 // mockWaitingListUserStore is a test double for WaitingListUserStore.
 type mockWaitingListUserStore struct {
 	createTxFn            func(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
-	getByEmailTxFn        func(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error)
-	getUserInfoByEmailsFn func(ctx context.Context, emails []string) ([]model.UserInfo, error)
+	getByEmailTxFn        func(ctx context.Context, tx model.DBTX, projectID, email string) (*model.UserEntity, error)
+	getUserInfoByEmailsFn func(ctx context.Context, projectID string, emails []string) ([]model.UserInfo, error)
 }
 
 func (m *mockWaitingListUserStore) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
 	return m.createTxFn(ctx, tx, user)
 }
 
-func (m *mockWaitingListUserStore) GetByEmailTx(ctx context.Context, tx model.DBTX, email string) (*model.UserEntity, error) {
-	return m.getByEmailTxFn(ctx, tx, email)
+func (m *mockWaitingListUserStore) GetByEmailTx(ctx context.Context, tx model.DBTX, projectID, email string) (*model.UserEntity, error) {
+	return m.getByEmailTxFn(ctx, tx, projectID, email)
 }
 
-func (m *mockWaitingListUserStore) GetUserInfoByEmails(ctx context.Context, emails []string) ([]model.UserInfo, error) {
+func (m *mockWaitingListUserStore) GetUserInfoByEmails(ctx context.Context, projectID string, emails []string) ([]model.UserInfo, error) {
 	if m.getUserInfoByEmailsFn != nil {
-		return m.getUserInfoByEmailsFn(ctx, emails)
+		return m.getUserInfoByEmailsFn(ctx, projectID, emails)
 	}
 	return []model.UserInfo{}, nil
 }
 
 // mockWaitingListStore is a test double for WaitingListStore.
 type mockWaitingListStore struct {
-	addFn     func(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error)
-	getAllFn  func(ctx context.Context) ([]model.WaitingListEntry, error)
+	addFn     func(ctx context.Context, tx model.DBTX, projectID, userID string) (*model.WaitingListEntry, error)
+	getAllFn  func(ctx context.Context, projectID string) ([]model.WaitingListEntry, error)
 	beginTxFn func(ctx context.Context) (model.Tx, error)
 }
 
-func (m *mockWaitingListStore) Add(ctx context.Context, tx model.DBTX, userID string) (*model.WaitingListEntry, error) {
-	return m.addFn(ctx, tx, userID)
+func (m *mockWaitingListStore) Add(ctx context.Context, tx model.DBTX, projectID, userID string) (*model.WaitingListEntry, error) {
+	return m.addFn(ctx, tx, projectID, userID)
 }
 
-func (m *mockWaitingListStore) GetAll(ctx context.Context) ([]model.WaitingListEntry, error) {
-	return m.getAllFn(ctx)
+func (m *mockWaitingListStore) GetAll(ctx context.Context, projectID string) ([]model.WaitingListEntry, error) {
+	return m.getAllFn(ctx, projectID)
 }
 
 func (m *mockWaitingListStore) BeginTx(ctx context.Context) (model.Tx, error) {
 	return m.beginTxFn(ctx)
 }
+
+var testProject = &model.Project{ID: "test-project-id", Slug: "test", Name: "Test"}
 
 func newWaitingListTestHandler(userStore WaitingListUserStore, wlStore WaitingListStore) *http.ServeMux {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -93,9 +95,14 @@ func newWaitingListTestHandler(userStore WaitingListUserStore, wlStore WaitingLi
 	return mux
 }
 
+func withProjectCtx(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), ctxKeyProject, testProject)
+	return r.WithContext(ctx)
+}
+
 func TestWaitingList_AddNewUser(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return nil, model.ErrUserNotFound
 		},
 		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
@@ -108,7 +115,7 @@ func TestWaitingList_AddNewUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-uuid-1",
 				UserID:    userID,
@@ -123,7 +130,7 @@ func TestWaitingList_AddNewUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -143,7 +150,7 @@ func TestWaitingList_AddNewUser(t *testing.T) {
 
 func TestWaitingList_AddExistingUser(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return &model.UserEntity{
 				ID:        "existing-uuid",
 				Firstname: "Jane",
@@ -157,7 +164,7 @@ func TestWaitingList_AddExistingUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-uuid-2",
 				UserID:    userID,
@@ -172,7 +179,7 @@ func TestWaitingList_AddExistingUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -189,7 +196,7 @@ func TestWaitingList_AddExistingUser(t *testing.T) {
 
 func TestWaitingList_GetAll_Entries(t *testing.T) {
 	wlStore := &mockWaitingListStore{
-		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
+		getAllFn: func(_ context.Context, _ string) ([]model.WaitingListEntry, error) {
 			return []model.WaitingListEntry{
 				{ID: "wl-1", UserID: "u-1", CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
 				{ID: "wl-2", UserID: "u-2", CreatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
@@ -202,7 +209,7 @@ func TestWaitingList_GetAll_Entries(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
@@ -222,7 +229,7 @@ func TestWaitingList_GetAll_Entries(t *testing.T) {
 
 func TestWaitingList_GetAll_Empty(t *testing.T) {
 	wlStore := &mockWaitingListStore{
-		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
+		getAllFn: func(_ context.Context, _ string) ([]model.WaitingListEntry, error) {
 			return []model.WaitingListEntry{}, nil
 		},
 	}
@@ -232,7 +239,7 @@ func TestWaitingList_GetAll_Empty(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", w.Code)
@@ -249,7 +256,7 @@ func TestWaitingList_GetAll_Empty(t *testing.T) {
 
 func TestWaitingList_Add_AlreadyOnList(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return &model.UserEntity{ID: "existing-uuid", Email: "dup@example.com"}, nil
 		},
 	}
@@ -257,7 +264,7 @@ func TestWaitingList_Add_AlreadyOnList(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.WaitingListEntry, error) {
 			return nil, model.ErrAlreadyOnWaitingList
 		},
 	}
@@ -268,7 +275,7 @@ func TestWaitingList_Add_AlreadyOnList(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d: %s", w.Code, w.Body.String())
@@ -282,7 +289,7 @@ func TestWaitingList_Add_MissingFirstname(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -296,7 +303,7 @@ func TestWaitingList_Add_MissingLastname(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -310,7 +317,7 @@ func TestWaitingList_Add_MissingEmail(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -324,7 +331,7 @@ func TestWaitingList_Add_InvalidEmail(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -337,7 +344,7 @@ func TestWaitingList_Add_EmptyBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -346,7 +353,7 @@ func TestWaitingList_Add_EmptyBody(t *testing.T) {
 
 func TestWaitingList_Add_ExtraFieldsIgnored(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return nil, model.ErrUserNotFound
 		},
 		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
@@ -358,7 +365,7 @@ func TestWaitingList_Add_ExtraFieldsIgnored(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{
 				ID:        "wl-extra",
 				UserID:    userID,
@@ -373,7 +380,7 @@ func TestWaitingList_Add_ExtraFieldsIgnored(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d", w.Code)
@@ -384,7 +391,7 @@ func TestWaitingList_Add_TransactionRollbackOnInsertFailure(t *testing.T) {
 	userCreated := false
 	tx := &fakeTx{}
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return nil, model.ErrUserNotFound
 		},
 		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
@@ -397,7 +404,7 @@ func TestWaitingList_Add_TransactionRollbackOnInsertFailure(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return tx, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.WaitingListEntry, error) {
 			return nil, fmt.Errorf("database error")
 		},
 	}
@@ -408,7 +415,7 @@ func TestWaitingList_Add_TransactionRollbackOnInsertFailure(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if !userCreated {
 		t.Error("expected user creation to be attempted")
@@ -430,7 +437,7 @@ func TestWaitingList_UnsupportedMethod_Delete(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", w.Code)
@@ -443,7 +450,7 @@ func TestWaitingList_UnsupportedMethod_Put(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", w.Code)
@@ -452,7 +459,7 @@ func TestWaitingList_UnsupportedMethod_Put(t *testing.T) {
 
 func TestWaitingList_GetAll_InternalError(t *testing.T) {
 	wlStore := &mockWaitingListStore{
-		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
+		getAllFn: func(_ context.Context, _ string) ([]model.WaitingListEntry, error) {
 			return nil, fmt.Errorf("db error")
 		},
 	}
@@ -462,7 +469,7 @@ func TestWaitingList_GetAll_InternalError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", w.Code)
@@ -471,7 +478,7 @@ func TestWaitingList_GetAll_InternalError(t *testing.T) {
 
 func TestWaitingList_GetUsersByEmail_Success(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, emails []string) ([]model.UserInfo, error) {
 			return []model.UserInfo{
 				{
 					Firstname: "Jane",
@@ -489,7 +496,7 @@ func TestWaitingList_GetUsersByEmail_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -512,7 +519,7 @@ func TestWaitingList_GetUsersByEmail_Success(t *testing.T) {
 
 func TestWaitingList_GetUsersByEmail_MultipleEmails(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, emails []string) ([]model.UserInfo, error) {
 			return []model.UserInfo{
 				{Firstname: "Jane", Lastname: "Doe", Email: "jane@example.com", HasAccess: false, CreatedAt: time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC)},
 				{Firstname: "John", Lastname: "Smith", Email: "john@example.com", HasAccess: true, CreatedAt: time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)},
@@ -525,7 +532,7 @@ func TestWaitingList_GetUsersByEmail_MultipleEmails(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com&email=john@example.com", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -543,7 +550,7 @@ func TestWaitingList_GetUsersByEmail_MultipleEmails(t *testing.T) {
 func TestWaitingList_GetUsersByEmail_TrimWhitespace(t *testing.T) {
 	var capturedEmails []string
 	userStore := &mockWaitingListUserStore{
-		getUserInfoByEmailsFn: func(_ context.Context, emails []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, emails []string) ([]model.UserInfo, error) {
 			capturedEmails = emails
 			return []model.UserInfo{}, nil
 		},
@@ -554,7 +561,7 @@ func TestWaitingList_GetUsersByEmail_TrimWhitespace(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=+jane@example.com+", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -566,7 +573,7 @@ func TestWaitingList_GetUsersByEmail_TrimWhitespace(t *testing.T) {
 
 func TestWaitingList_GetUsersByEmail_NoMatchReturnsEmptyList(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, _ []string) ([]model.UserInfo, error) {
 			return []model.UserInfo{}, nil
 		},
 	}
@@ -576,7 +583,7 @@ func TestWaitingList_GetUsersByEmail_NoMatchReturnsEmptyList(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=unknown@example.com", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -597,7 +604,7 @@ func TestWaitingList_GetUsersByEmail_MissingParam(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
@@ -610,7 +617,7 @@ func TestWaitingList_GetUsersByEmail_InvalidEmail(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=invalid", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
@@ -619,7 +626,7 @@ func TestWaitingList_GetUsersByEmail_InvalidEmail(t *testing.T) {
 
 func TestWaitingList_GetUsersByEmail_InternalError(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, _ []string) ([]model.UserInfo, error) {
 			return nil, fmt.Errorf("database connection lost")
 		},
 	}
@@ -629,7 +636,7 @@ func TestWaitingList_GetUsersByEmail_InternalError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=jane@example.com", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())
@@ -639,7 +646,7 @@ func TestWaitingList_GetUsersByEmail_InternalError(t *testing.T) {
 func TestWaitingList_Add_IPSetOnNewUser(t *testing.T) {
 	var capturedIP *string
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return nil, model.ErrUserNotFound
 		},
 		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
@@ -652,7 +659,7 @@ func TestWaitingList_Add_IPSetOnNewUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{ID: "wl-1", UserID: userID, CreatedAt: time.Now()}, nil
 		},
 	}
@@ -664,7 +671,7 @@ func TestWaitingList_Add_IPSetOnNewUser(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -679,7 +686,7 @@ func TestWaitingList_Add_IPSetOnNewUser(t *testing.T) {
 
 func TestWaitingList_Add_IPNotSetOnExistingUser(t *testing.T) {
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return &model.UserEntity{
 				ID:        "existing-uuid",
 				Firstname: "Jane",
@@ -694,7 +701,7 @@ func TestWaitingList_Add_IPNotSetOnExistingUser(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{ID: "wl-2", UserID: userID, CreatedAt: time.Now()}, nil
 		},
 	}
@@ -706,7 +713,7 @@ func TestWaitingList_Add_IPNotSetOnExistingUser(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.99")
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -725,7 +732,7 @@ func TestWaitingList_Add_AlreadyHasAccessReturns205(t *testing.T) {
 	addCalled := false
 	tx := &fakeTx{}
 	userStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return &model.UserEntity{
 				ID:        "granted-uuid",
 				Firstname: "Jane",
@@ -743,7 +750,7 @@ func TestWaitingList_Add_AlreadyHasAccessReturns205(t *testing.T) {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return tx, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, _ string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.WaitingListEntry, error) {
 			addCalled = true
 			return nil, nil
 		},
@@ -755,7 +762,7 @@ func TestWaitingList_Add_AlreadyHasAccessReturns205(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusResetContent {
 		t.Fatalf("expected status 205, got %d: %s", w.Code, w.Body.String())
@@ -792,7 +799,7 @@ func TestWaitingList_Add_BeginTxError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", w.Code)

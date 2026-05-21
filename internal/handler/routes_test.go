@@ -16,14 +16,14 @@ func newFullMux() *http.ServeMux {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	wlUserStore := &mockWaitingListUserStore{
-		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _ string) (*model.UserEntity, error) {
+		getByEmailTxFn: func(_ context.Context, _ model.DBTX, _, _ string) (*model.UserEntity, error) {
 			return nil, model.ErrUserNotFound
 		},
 		createTxFn: func(_ context.Context, _ model.DBTX, user *model.UserEntity) error {
 			user.ID = "uuid-1"
 			return nil
 		},
-		getUserInfoByEmailsFn: func(_ context.Context, _ []string) ([]model.UserInfo, error) {
+		getUserInfoByEmailsFn: func(_ context.Context, _ string, _ []string) ([]model.UserInfo, error) {
 			return []model.UserInfo{}, nil
 		},
 	}
@@ -31,10 +31,10 @@ func newFullMux() *http.ServeMux {
 		beginTxFn: func(_ context.Context) (model.Tx, error) {
 			return &fakeTx{}, nil
 		},
-		addFn: func(_ context.Context, _ model.DBTX, userID string) (*model.WaitingListEntry, error) {
+		addFn: func(_ context.Context, _ model.DBTX, _, userID string) (*model.WaitingListEntry, error) {
 			return &model.WaitingListEntry{ID: "wl-1", UserID: userID}, nil
 		},
-		getAllFn: func(_ context.Context) ([]model.WaitingListEntry, error) {
+		getAllFn: func(_ context.Context, _ string) ([]model.WaitingListEntry, error) {
 			return []model.WaitingListEntry{}, nil
 		},
 	}
@@ -52,7 +52,7 @@ func TestRoutes_POST_WaitingList_ReachesHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -65,7 +65,7 @@ func TestRoutes_GET_WaitingList_ReachesHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -78,7 +78,7 @@ func TestRoutes_UndefinedRoute_Returns404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", w.Code)
@@ -91,7 +91,7 @@ func TestRoutes_Users_Returns404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(`{"firstname":"John","lastname":"Doe","email":"john@example.com"}`))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404 for removed /users route, got %d", w.Code)
@@ -104,7 +104,7 @@ func TestRoutes_PATCH_WaitingList_Returns405(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPatch, "/waitinglist", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", w.Code)
@@ -117,7 +117,7 @@ func TestRoutes_GET_WaitingListUsers_ReachesHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/waitinglist/users?email=test@example.com", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -130,7 +130,7 @@ func TestRoutes_POST_WaitingListUsers_Returns405(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/waitinglist/users", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, withProjectCtx(req))
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected status 405, got %d", w.Code)
