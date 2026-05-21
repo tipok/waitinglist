@@ -120,6 +120,7 @@ func TestTenantMiddleware_NoIdentification_Returns400(t *testing.T) {
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler must not be called when project cannot be resolved")
+		//goland:noinspection GoUnreachableCode
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -138,6 +139,7 @@ func TestTenantMiddleware_UnknownSlug_Returns400(t *testing.T) {
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler must not be called for unknown slug")
+		//goland:noinspection GoUnreachableCode
 		w.WriteHeader(http.StatusOK)
 	}))
 

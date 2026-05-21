@@ -64,6 +64,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 func defaultProjectID(t *testing.T, db *sql.DB) string {
 	t.Helper()
 	var id string
+	//goland:noinspection ALL
 	err := db.QueryRow("SELECT id FROM project WHERE slug = 'default'").Scan(&id)
 	if err != nil {
 		t.Fatalf("failed to get default project id: %v", err)

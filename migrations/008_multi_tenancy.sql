@@ -1,3 +1,7 @@
+-- noinspection SqlResolveForFile
+
+-- noinspection SqlResolveForFile @ table/"user_entity"
+
 -- 008: Multi-tenancy — project-scoped users, waiting lists, and scheduler state.
 
 -- Project table
