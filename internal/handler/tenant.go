@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	// +10 to avoid collision with ctxKeyAdminUser defined in middleware.go
 	ctxKeyProject ctxKey = iota + 10
 )
 
@@ -67,6 +68,7 @@ func (pr *ProjectResolver) Middleware(next http.Handler) http.Handler {
 		slug := r.Header.Get(pr.headerName)
 
 		if slug == "" {
+			// hostMapping is immutable after construction; no lock needed.
 			host := stripPort(r.Host)
 			if mapped, ok := pr.hostMapping[host]; ok {
 				slug = mapped

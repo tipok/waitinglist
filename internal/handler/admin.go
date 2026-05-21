@@ -6,12 +6,15 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
+
+var validSlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 const (
 	defaultAdminListLimit = 50
@@ -55,18 +58,25 @@ type AdminProjectStore interface {
 	Update(ctx context.Context, p *model.Project) error
 }
 
+// ProjectCacheReloader allows the admin handler to refresh the tenant
+// middleware's project cache after mutations.
+type ProjectCacheReloader interface {
+	Reload(projects []model.Project)
+}
+
 // AdminHandler serves the /admin/* JSON endpoints. The caller is responsible
 // for wrapping the registered routes in BasicAuthMiddleware.
 type AdminHandler struct {
-	userStore    AdminUserStore
-	wlStore      AdminWaitingListStore
-	projectStore AdminProjectStore
-	logger       *slog.Logger
+	userStore     AdminUserStore
+	wlStore       AdminWaitingListStore
+	projectStore  AdminProjectStore
+	cacheReloader ProjectCacheReloader
+	logger        *slog.Logger
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projectStore AdminProjectStore, logger *slog.Logger) *AdminHandler {
-	return &AdminHandler{userStore: userStore, wlStore: wlStore, projectStore: projectStore, logger: logger}
+func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projectStore AdminProjectStore, cacheReloader ProjectCacheReloader, logger *slog.Logger) *AdminHandler {
+	return &AdminHandler{userStore: userStore, wlStore: wlStore, projectStore: projectStore, cacheReloader: cacheReloader, logger: logger}
 }
 
 // RegisterRoutes registers the admin routes on the given mux. Wrap the mux
@@ -99,7 +109,11 @@ func (h *AdminHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	projectID := h.resolveProjectFilter(r)
+	projectID, err := h.resolveProjectFilter(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		return
+	}
 
 	waitList, withAccess, err := h.userStore.CountByAccess(ctx, projectID)
 	if err != nil {
@@ -132,7 +146,11 @@ type listWithAccessResponse struct {
 
 func (h *AdminHandler) handleListWithAccess(w http.ResponseWriter, r *http.Request) {
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
-	projectID := h.resolveProjectFilter(r)
+	projectID, err := h.resolveProjectFilter(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		return
+	}
 
 	limit, err := parseIntQuery(r, "limit", defaultAdminListLimit, 1, maxAdminListLimit)
 	if err != nil {
@@ -163,7 +181,11 @@ type listWaitlistResponse struct {
 
 func (h *AdminHandler) handleListWaitlist(w http.ResponseWriter, r *http.Request) {
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
-	projectID := h.resolveProjectFilter(r)
+	projectID, err := h.resolveProjectFilter(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		return
+	}
 
 	limit, err := parseIntQuery(r, "limit", defaultAdminListLimit, 1, maxAdminListLimit)
 	if err != nil {
@@ -289,8 +311,8 @@ func (h *AdminHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logReason := reason
-	if len(logReason) > 80 {
-		logReason = logReason[:80] + "…"
+	if runes := []rune(logReason); len(runes) > 80 {
+		logReason = string(runes[:80]) + "..."
 	}
 	h.logger.Info("admin revoke: access revoked",
 		"admin_user", adminUser, "user_id", id, "reason", logReason)
@@ -321,17 +343,18 @@ func (h *AdminHandler) handleDeleteWaitlist(w http.ResponseWriter, r *http.Reque
 
 // resolveProjectFilter reads an optional ?project=<slug> query parameter and
 // resolves it to a project ID. Returns "" (meaning all projects) when the
-// parameter is absent or the slug is not found.
-func (h *AdminHandler) resolveProjectFilter(r *http.Request) string {
+// parameter is absent. Returns an error when the slug is unknown or the DB
+// lookup fails.
+func (h *AdminHandler) resolveProjectFilter(r *http.Request) (string, error) {
 	slug := strings.TrimSpace(r.URL.Query().Get("project"))
 	if slug == "" {
-		return ""
+		return "", nil
 	}
 	p, err := h.projectStore.GetBySlug(r.Context(), slug)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return p.ID
+	return p.ID, nil
 }
 
 func (h *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Request) {
@@ -347,9 +370,9 @@ func (h *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Request
 type createProjectRequest struct {
 	Slug                  string  `json:"slug"`
 	Name                  string  `json:"name"`
-	EntryBatchSize        *int    `json:"entry_batch_size,omitzero"`
-	EntryWindowInterval   *string `json:"entry_window_interval,omitzero"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitzero"`
+	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
+	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
+	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"`
 	SchedulerDisabled     bool    `json:"scheduler_disabled"`
 }
 
@@ -364,6 +387,10 @@ func (h *AdminHandler) handleCreateProject(w http.ResponseWriter, r *http.Reques
 	name := strings.TrimSpace(req.Name)
 	if slug == "" {
 		WriteError(w, http.StatusBadRequest, "slug is required", h.logger)
+		return
+	}
+	if !validSlugRe.MatchString(slug) {
+		WriteError(w, http.StatusBadRequest, "slug must be lowercase alphanumeric with hyphens", h.logger)
 		return
 	}
 	if name == "" {
@@ -404,17 +431,19 @@ func (h *AdminHandler) handleCreateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	h.reloadProjectCache(r.Context())
+
 	h.logger.Info("admin project created",
 		"admin_user", AdminUserFromContext(r.Context()), "project_slug", slug)
 	WriteJSON(w, http.StatusCreated, p, h.logger)
 }
 
 type updateProjectRequest struct {
-	Name                  *string `json:"name,omitzero"`
-	EntryBatchSize        *int    `json:"entry_batch_size,omitzero"`
-	EntryWindowInterval   *string `json:"entry_window_interval,omitzero"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitzero"`
-	SchedulerDisabled     *bool   `json:"scheduler_disabled,omitzero"`
+	Name                  *string `json:"name,omitempty"`
+	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
+	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
+	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"`
+	SchedulerDisabled     *bool   `json:"scheduler_disabled,omitempty"`
 }
 
 func (h *AdminHandler) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
@@ -478,13 +507,28 @@ func (h *AdminHandler) handleUpdateProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	h.reloadProjectCache(r.Context())
+
 	h.logger.Info("admin project updated",
 		"admin_user", AdminUserFromContext(r.Context()), "project_id", id)
 	WriteJSON(w, http.StatusOK, existing, h.logger)
 }
 
-func parseDurationString(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
+func (h *AdminHandler) reloadProjectCache(ctx context.Context) {
+	if h.cacheReloader == nil {
+		return
+	}
+	projects, err := h.projectStore.GetAll(ctx)
+	if err != nil {
+		h.logger.Error("failed to reload project cache", "error", err)
+		return
+	}
+	h.cacheReloader.Reload(projects)
+}
+
+func parseDurationString(s string) (model.Duration, error) {
+	d, err := time.ParseDuration(s)
+	return model.Duration(d), err
 }
 
 // parseIntQuery parses a query parameter as an int, applying a default when

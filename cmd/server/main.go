@@ -59,10 +59,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
+		if err := db.Close(); err != nil {
 			logger.Error("Error closing database connection", "error", err)
-			os.Exit(1)
 		}
 	}(db)
 
@@ -82,6 +80,19 @@ func main() {
 		logger.Error("Error loading projects", "error", err)
 		os.Exit(1)
 	}
+	// Validate that the configured default project exists.
+	defaultFound := false
+	for _, p := range projects {
+		if p.Slug == cfg.Projects.DefaultSlug {
+			defaultFound = true
+			break
+		}
+	}
+	if !defaultFound {
+		logger.Error("configured default project slug not found in database", "slug", cfg.Projects.DefaultSlug)
+		os.Exit(1)
+	}
+
 	resolver := handler.NewProjectResolver(
 		cfg.Projects.HeaderName,
 		cfg.Projects.DefaultSlug,
@@ -92,7 +103,7 @@ func main() {
 
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
 	healthHandler := handler.NewHealthHandler(db, logger)
-	err = waitlist.Start(ctx, cfg, projectRepo, waitListRepo, userRepo, schedulerRepo)
+	err = waitlist.Start(ctx, cfg, logger, projectRepo, waitListRepo, userRepo, schedulerRepo)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
 		os.Exit(1)
@@ -103,8 +114,9 @@ func main() {
 	// Tenant-scoped routes go through the project resolver middleware.
 	tenantMux := http.NewServeMux()
 	waitListHandler.RegisterRoutes(tenantMux)
-	mux.Handle("/waitinglist", resolver.Middleware(tenantMux))
-	mux.Handle("/waitinglist/", resolver.Middleware(tenantMux))
+	tenantHandler := resolver.Middleware(tenantMux)
+	mux.Handle("/waitinglist", tenantHandler)
+	mux.Handle("/waitinglist/", tenantHandler)
 
 	healthHandler.RegisterRoutes(mux)
 
@@ -113,7 +125,7 @@ func main() {
 	if adminUser == "" || len(adminHash) == 0 {
 		logger.Warn("admin basic auth not configured; /admin routes disabled")
 	} else {
-		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projectRepo, logger)
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projectRepo, resolver, logger)
 		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
 
 		adminMux := http.NewServeMux()
@@ -129,7 +141,7 @@ func main() {
 	wrapped := handler.LoggingMiddleware(handler.JSONContentType(mux), logger)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Port)
-	logger.Info("Starting server", "addr", addr)
+	logger.Info("server listening", "addr", addr)
 
 	srv := &http.Server{
 		Addr:    addr,
@@ -140,7 +152,6 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("Server listening on", "address", addr)
 		if err := srv.ListenAndServe(); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				logger.Error("Server forced to shutdown: ", "error", err)
@@ -153,9 +164,9 @@ func main() {
 	stop()
 	logger.Info("shutting down gracefully, press Ctrl+C again to force")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server forced to shutdown:", "error", err)
 		panic(err)
 	}

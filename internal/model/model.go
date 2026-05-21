@@ -3,9 +3,30 @@ package model
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 )
+
+// Duration wraps time.Duration with JSON string marshaling (e.g. "30h").
+type Duration time.Duration
+
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	parsed, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Duration(parsed)
+	return nil
+}
 
 // DBTX is an interface satisfied by both *sql.DB and *sql.Tx, allowing
 // repository methods to work within or outside a transaction.
@@ -38,14 +59,14 @@ var (
 
 // Project represents a tenant project stored in the project table.
 type Project struct {
-	ID                    string         `json:"id"`
-	Slug                  string         `json:"slug"`
-	Name                  string         `json:"name"`
-	EntryBatchSize        *int           `json:"entry_batch_size,omitzero"`
-	EntryWindowInterval   *time.Duration `json:"entry_window_interval,omitzero"`
-	WaitlistCheckInterval *time.Duration `json:"waitlist_check_interval,omitzero"`
-	SchedulerDisabled     bool           `json:"scheduler_disabled"`
-	CreatedAt             time.Time      `json:"created_at"`
+	ID                    string    `json:"id"`
+	Slug                  string    `json:"slug"`
+	Name                  string    `json:"name"`
+	EntryBatchSize        *int      `json:"entry_batch_size,omitempty"`
+	EntryWindowInterval   *Duration `json:"entry_window_interval,omitempty"`
+	WaitlistCheckInterval *Duration `json:"waitlist_check_interval,omitempty"`
+	SchedulerDisabled     bool      `json:"scheduler_disabled"`
+	CreatedAt             time.Time `json:"created_at"`
 }
 
 // UserEntity represents a user stored in the user_entity table.
@@ -57,12 +78,12 @@ type UserEntity struct {
 	Email              string     `json:"email"`
 	HasAccess          bool       `json:"has_access"`
 	CreatedAt          time.Time  `json:"created_at"`
-	IPAddress          *string    `json:"ip_address,omitzero"`
-	AccessGrantedAt    *time.Time `json:"access_granted_at,omitzero"`
-	AccessGrantedBy    *string    `json:"access_granted_by,omitzero"`
-	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitzero"`
-	AccessRevokedBy    *string    `json:"access_revoked_by,omitzero"`
-	AccessRevokeReason *string    `json:"access_revoke_reason,omitzero"`
+	IPAddress          *string    `json:"ip_address,omitempty"`
+	AccessGrantedAt    *time.Time `json:"access_granted_at,omitempty"`
+	AccessGrantedBy    *string    `json:"access_granted_by,omitempty"`
+	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitempty"`
+	AccessRevokedBy    *string    `json:"access_revoked_by,omitempty"`
+	AccessRevokeReason *string    `json:"access_revoke_reason,omitempty"`
 }
 
 // UserInfo represents user information returned by the public lookup endpoint
@@ -75,10 +96,10 @@ type UserInfo struct {
 	Email              string     `json:"email"`
 	HasAccess          bool       `json:"has_access"`
 	CreatedAt          time.Time  `json:"created_at"`
-	AccessGrantedAt    *time.Time `json:"access_granted_at,omitzero"`
-	AccessGrantedBy    *string    `json:"access_granted_by,omitzero"`
-	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitzero"`
-	AccessRevokeReason *string    `json:"access_revoke_reason,omitzero"`
+	AccessGrantedAt    *time.Time `json:"access_granted_at,omitempty"`
+	AccessGrantedBy    *string    `json:"access_granted_by,omitempty"`
+	AccessRevokedAt    *time.Time `json:"access_revoked_at,omitempty"`
+	AccessRevokeReason *string    `json:"access_revoke_reason,omitempty"`
 }
 
 // UserInfoList wraps a slice of UserInfo for JSON serialization.

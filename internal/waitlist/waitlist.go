@@ -2,26 +2,43 @@ package waitlist
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
-	lg "github.com/tipok/waitinglist/internal/logger"
 	"github.com/tipok/waitinglist/internal/model"
-	"github.com/tipok/waitinglist/internal/repository"
 )
 
 const schedulerKeyWaitlistLastSuccess = "waitlist_last_success"
 
+type projectStore interface {
+	GetAll(ctx context.Context) ([]model.Project, error)
+}
+
+type waitingListStore interface {
+	GetWithOffsetLimit(ctx context.Context, projectID string, offset, limit *int) ([]model.WaitingListEntry, error)
+	DeleteByIDsTx(ctx context.Context, tx model.DBTX, ids []string) error
+	BeginTx(ctx context.Context) (model.Tx, error)
+}
+
+type userStore interface {
+	GrantAccessTx(ctx context.Context, tx model.DBTX, ids []string, source string) error
+}
+
+type schedulerStore interface {
+	GetLastSuccess(ctx context.Context, projectID, key string) (time.Time, error)
+	UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectID, key string) error
+}
+
 func Start(
 	ctx context.Context,
 	cfg *config.Config,
-	projectRepo *repository.ProjectRepository,
-	waitingListRepo *repository.WaitingListRepository,
-	userRepo *repository.UserRepository,
-	schedulerRepo *repository.SchedulerRepository,
+	logger *slog.Logger,
+	projectRepo projectStore,
+	waitingListRepo waitingListStore,
+	userRepo userStore,
+	schedulerRepo schedulerStore,
 ) error {
-	logger := lg.NewLogger()
-
 	if cfg.SchedulerInterval.Disabled {
 		logger.Info("scheduler disabled globally, skipping")
 		return nil
@@ -39,7 +56,7 @@ func Start(
 
 		windowInterval := cfg.Waitlist.EntryWindowInterval
 		if p.EntryWindowInterval != nil {
-			windowInterval = *p.EntryWindowInterval
+			windowInterval = time.Duration(*p.EntryWindowInterval)
 		}
 
 		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, p.ID, schedulerKeyWaitlistLastSuccess)
@@ -57,34 +74,47 @@ func Start(
 			return
 		}
 		usersToAllow := make([]string, 0, len(entries))
-		waitingListIds := make([]string, 0, len(entries))
+		waitingListIDs := make([]string, 0, len(entries))
 		for _, entry := range entries {
 			if time.Since(entry.WeightedCreatedAt) < windowInterval {
 				continue
 			}
 			usersToAllow = append(usersToAllow, entry.UserID)
-			waitingListIds = append(waitingListIds, entry.ID)
+			waitingListIDs = append(waitingListIDs, entry.ID)
 		}
 
 		if len(usersToAllow) == 0 {
 			return
 		}
 
-		err = userRepo.GrantAccess(ctx, usersToAllow, "scheduler")
+		tx, err := waitingListRepo.BeginTx(ctx)
+		if err != nil {
+			logger.Error("failed to begin tx", "error", err, "project", p.Slug)
+			return
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		err = userRepo.GrantAccessTx(ctx, tx, usersToAllow, "scheduler")
 		if err != nil {
 			logger.Error("failed to grant access", "error", err, "project", p.Slug)
 			return
 		}
 
-		err = waitingListRepo.DeleteByIDs(ctx, waitingListIds)
+		err = waitingListRepo.DeleteByIDsTx(ctx, tx, waitingListIDs)
 		if err != nil {
 			logger.Error("failed to delete waiting list entries", "error", err, "project", p.Slug)
 			return
 		}
 
-		err = schedulerRepo.UpdateLastSuccess(ctx, schedulerRepo.DB(), p.ID, schedulerKeyWaitlistLastSuccess)
+		err = schedulerRepo.UpdateLastSuccess(ctx, tx, p.ID, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
 			logger.Error("failed to update last success", "error", err, "project", p.Slug)
+			return
+		}
+
+		if err = tx.Commit(); err != nil {
+			logger.Error("failed to commit tx", "error", err, "project", p.Slug)
+			return
 		}
 
 		logger.Info("scheduler batch processed",

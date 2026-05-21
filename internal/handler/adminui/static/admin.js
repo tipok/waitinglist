@@ -51,9 +51,13 @@ async function loadProjectFilter() {
     }
     select.addEventListener("change", () => {
       state.project = select.value;
+      state.access.offset = 0;
+      state.waitlist.offset = 0;
       refreshCurrentTab();
     });
-  } catch (_) { /* project filter is optional */ }
+  } catch (err) {
+    console.warn("Failed to load projects for filter:", err.message || err);
+  }
 }
 
 function projectParam() {

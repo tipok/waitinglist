@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
-	"github.com/tipok/waitinglist/internal/logger"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
@@ -59,28 +58,28 @@ func (r *WaitingListRepository) GetAll(ctx context.Context, projectID string) ([
 
 //goland:noinspection ALL
 func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, projectID string, offset, limit *int) ([]model.WaitingListEntry, error) {
-	query := `SELECT id, project_id, user_id, created_at, weighted_created_at
+	//goland:noinspection ALL
+	const query = `SELECT id, project_id, user_id, created_at, weighted_created_at
 		FROM waiting_list
 		WHERE project_id = $1
-		ORDER BY weighted_created_at ASC`
+		ORDER BY weighted_created_at ASC
+		LIMIT $2 OFFSET $3`
 
-	if offset != nil {
-		query += fmt.Sprintf(" OFFSET %d", *offset)
-	}
-
+	effectiveLimit := 2147483647
+	effectiveOffset := 0
 	if limit != nil {
-		query += fmt.Sprintf(" LIMIT %d", *limit)
+		effectiveLimit = *limit
+	}
+	if offset != nil {
+		effectiveOffset = *offset
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, projectID)
+	rows, err := r.db.QueryContext(ctx, query, projectID, effectiveLimit, effectiveOffset)
 	if err != nil {
 		return nil, fmt.Errorf("querying waiting list: %w", err)
 	}
 	defer func() {
-		err := rows.Close()
-		if err != nil {
-			logger.NewLogger().Error("Error closing waiting list rows", "error", err)
-		}
+		_ = rows.Close()
 	}()
 
 	entries := make([]model.WaitingListEntry, 0)
@@ -138,17 +137,33 @@ func (r *WaitingListRepository) BeginTx(ctx context.Context) (model.Tx, error) {
 //
 //goland:noinspection ALL
 func (r *WaitingListRepository) ListJoined(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
-	const query = `
-		SELECT wl.id, wl.project_id, wl.user_id, ue.email, ue.firstname, ue.lastname,
-		       wl.weight, wl.created_at, wl.weighted_created_at
-		FROM   waiting_list wl
-		JOIN   user_entity  ue ON ue.id = wl.user_id
-		WHERE  ($1 = '' OR wl.project_id = $1::uuid)
-		  AND  ($2 = '' OR ue.email ILIKE '%' || $2 || '%')
-		ORDER  BY wl.weighted_created_at ASC, ue.email ASC
-		LIMIT  $3 OFFSET $4`
+	var rows *sql.Rows
+	var err error
 
-	rows, err := r.db.QueryContext(ctx, query, projectID, emailLike, limit, offset)
+	if projectID == "" {
+		//goland:noinspection ALL
+		const query = `
+			SELECT wl.id, wl.project_id, wl.user_id, ue.email, ue.firstname, ue.lastname,
+			       wl.weight, wl.created_at, wl.weighted_created_at
+			FROM   waiting_list wl
+			JOIN   user_entity  ue ON ue.id = wl.user_id
+			WHERE  ($1 = '' OR ue.email ILIKE '%' || $1 || '%')
+			ORDER  BY wl.weighted_created_at ASC, ue.email ASC
+			LIMIT  $2 OFFSET $3`
+		rows, err = r.db.QueryContext(ctx, query, emailLike, limit, offset)
+	} else {
+		//goland:noinspection ALL
+		const query = `
+			SELECT wl.id, wl.project_id, wl.user_id, ue.email, ue.firstname, ue.lastname,
+			       wl.weight, wl.created_at, wl.weighted_created_at
+			FROM   waiting_list wl
+			JOIN   user_entity  ue ON ue.id = wl.user_id
+			WHERE  wl.project_id = $1
+			  AND  ($2 = '' OR ue.email ILIKE '%' || $2 || '%')
+			ORDER  BY wl.weighted_created_at ASC, ue.email ASC
+			LIMIT  $3 OFFSET $4`
+		rows, err = r.db.QueryContext(ctx, query, projectID, emailLike, limit, offset)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("listing waiting list joined: %w", err)
 	}

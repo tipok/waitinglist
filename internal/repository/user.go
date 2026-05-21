@@ -289,7 +289,7 @@ func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectID string,
 			SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
 			       COUNT(*) AS count
 			FROM   user_entity
-			WHERE  created_at >= NOW() - ($1 || ' days')::interval
+			WHERE  created_at >= (NOW() AT TIME ZONE 'UTC') - ($1 || ' days')::interval
 			GROUP  BY 1
 			ORDER  BY 1`
 		rows, err = r.db.QueryContext(ctx, query, days)
@@ -299,7 +299,7 @@ func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectID string,
 			SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
 			       COUNT(*) AS count
 			FROM   user_entity
-			WHERE  project_id = $1 AND created_at >= NOW() - ($2 || ' days')::interval
+			WHERE  project_id = $1 AND created_at >= (NOW() AT TIME ZONE 'UTC') - ($2 || ' days')::interval
 			GROUP  BY 1
 			ORDER  BY 1`
 		rows, err = r.db.QueryContext(ctx, query, projectID, days)
@@ -339,16 +339,29 @@ func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectID string,
 //
 //goland:noinspection ALL
 func (r *UserRepository) ListWithAccess(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error) {
-	//goland:noinspection ALL
-	query := `SELECT ` + userSelectColumns + `
-		FROM   user_entity
-		WHERE  has_access = TRUE
-		  AND  ($1 = '' OR project_id = $1::uuid)
-		  AND  ($2 = '' OR email ILIKE '%' || $2 || '%')
-		ORDER  BY access_granted_at DESC NULLS LAST, email ASC
-		LIMIT  $3 OFFSET $4`
+	var rows *sql.Rows
+	var err error
 
-	rows, err := r.db.QueryContext(ctx, query, projectID, emailLike, limit, offset)
+	if projectID == "" {
+		//goland:noinspection ALL
+		query := `SELECT ` + userSelectColumns + `
+			FROM   user_entity
+			WHERE  has_access = TRUE
+			  AND  ($1 = '' OR email ILIKE '%' || $1 || '%')
+			ORDER  BY access_granted_at DESC NULLS LAST, email ASC
+			LIMIT  $2 OFFSET $3`
+		rows, err = r.db.QueryContext(ctx, query, emailLike, limit, offset)
+	} else {
+		//goland:noinspection ALL
+		query := `SELECT ` + userSelectColumns + `
+			FROM   user_entity
+			WHERE  has_access = TRUE
+			  AND  project_id = $1
+			  AND  ($2 = '' OR email ILIKE '%' || $2 || '%')
+			ORDER  BY access_granted_at DESC NULLS LAST, email ASC
+			LIMIT  $3 OFFSET $4`
+		rows, err = r.db.QueryContext(ctx, query, projectID, emailLike, limit, offset)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("listing users with access: %w", err)
 	}

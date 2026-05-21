@@ -37,7 +37,7 @@ func buildAdminServer(t *testing.T, username, password string) http.Handler {
 	}
 	ws := &fakeAdminWaitlistStore{}
 
-	adminHandler := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, logger)
+	adminHandler := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, &fakeProjectCacheReloader{}, logger)
 	auth := BasicAuthMiddleware(username, hash, "test", logger)
 
 	adminMux := http.NewServeMux()

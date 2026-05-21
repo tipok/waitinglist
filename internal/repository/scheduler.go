@@ -20,11 +20,6 @@ func NewSchedulerRepository(db *sql.DB) *SchedulerRepository {
 	return &SchedulerRepository{db: db}
 }
 
-// DB returns the underlying database connection.
-func (r *SchedulerRepository) DB() *sql.DB {
-	return r.db
-}
-
 // GetLastSuccess returns the stored timestamp for the given key scoped to a
 // project. Returns a zero time.Time and nil error if no row exists.
 //

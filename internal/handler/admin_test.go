@@ -77,9 +77,13 @@ func (f *fakeAdminProjectStore) GetByID(_ context.Context, _ string) (*model.Pro
 func (f *fakeAdminProjectStore) Create(_ context.Context, _ *model.Project) error { return nil }
 func (f *fakeAdminProjectStore) Update(_ context.Context, _ *model.Project) error { return nil }
 
+type fakeProjectCacheReloader struct{}
+
+func (f *fakeProjectCacheReloader) Reload(_ []model.Project) {}
+
 func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHandler, *http.ServeMux) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, logger)
+	h := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, &fakeProjectCacheReloader{}, logger)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	return h, mux

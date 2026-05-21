@@ -78,17 +78,8 @@ func (r *ProjectRepository) GetBySlug(ctx context.Context, slug string) (*model.
 		return nil, fmt.Errorf("querying project by slug: %w", err)
 	}
 
-	if batchSize.Valid {
-		v := int(batchSize.Int64)
-		p.EntryBatchSize = &v
-	}
-	if windowInterval != nil {
-		d, _ := parseInterval(*windowInterval)
-		p.EntryWindowInterval = &d
-	}
-	if checkInterval != nil {
-		d, _ := parseInterval(*checkInterval)
-		p.WaitlistCheckInterval = &d
+	if err := scanProjectFromRow(&p, batchSize, windowInterval, checkInterval); err != nil {
+		return nil, err
 	}
 
 	return &p, nil
@@ -119,17 +110,8 @@ func (r *ProjectRepository) GetByID(ctx context.Context, id string) (*model.Proj
 		return nil, fmt.Errorf("querying project by id: %w", err)
 	}
 
-	if batchSize.Valid {
-		v := int(batchSize.Int64)
-		p.EntryBatchSize = &v
-	}
-	if windowInterval != nil {
-		d, _ := parseInterval(*windowInterval)
-		p.EntryWindowInterval = &d
-	}
-	if checkInterval != nil {
-		d, _ := parseInterval(*checkInterval)
-		p.WaitlistCheckInterval = &d
+	if err := scanProjectFromRow(&p, batchSize, windowInterval, checkInterval); err != nil {
+		return nil, err
 	}
 
 	return &p, nil
@@ -206,6 +188,31 @@ func (r *ProjectRepository) Update(ctx context.Context, p *model.Project) error 
 	return nil
 }
 
+// scanProjectFromRow populates a model.Project from pre-scanned nullable
+// fields. It converts the raw interval strings to time.Duration values and
+// propagates parse errors.
+func scanProjectFromRow(p *model.Project, batchSize sql.NullInt64, windowInterval, checkInterval *string) error {
+	if batchSize.Valid {
+		v := int(batchSize.Int64)
+		p.EntryBatchSize = &v
+	}
+	if windowInterval != nil {
+		d, err := parseInterval(*windowInterval)
+		if err != nil {
+			return fmt.Errorf("parsing entry_window_interval %q: %w", *windowInterval, err)
+		}
+		p.EntryWindowInterval = &d
+	}
+	if checkInterval != nil {
+		d, err := parseInterval(*checkInterval)
+		if err != nil {
+			return fmt.Errorf("parsing waitlist_check_interval %q: %w", *checkInterval, err)
+		}
+		p.WaitlistCheckInterval = &d
+	}
+	return nil
+}
+
 func scanProject(rows *sql.Rows) (model.Project, error) {
 	var p model.Project
 	var batchSize sql.NullInt64
@@ -218,26 +225,18 @@ func scanProject(rows *sql.Rows) (model.Project, error) {
 		return model.Project{}, fmt.Errorf("scanning project: %w", err)
 	}
 
-	if batchSize.Valid {
-		v := int(batchSize.Int64)
-		p.EntryBatchSize = &v
-	}
-	if windowInterval != nil {
-		d, _ := parseInterval(*windowInterval)
-		p.EntryWindowInterval = &d
-	}
-	if checkInterval != nil {
-		d, _ := parseInterval(*checkInterval)
-		p.WaitlistCheckInterval = &d
+	if err := scanProjectFromRow(&p, batchSize, windowInterval, checkInterval); err != nil {
+		return model.Project{}, err
 	}
 
 	return p, nil
 }
 
-func parseInterval(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
+func parseInterval(s string) (model.Duration, error) {
+	d, err := time.ParseDuration(s)
+	return model.Duration(d), err
 }
 
-func durationToInterval(d time.Duration) string {
-	return d.String()
+func durationToInterval(d model.Duration) string {
+	return time.Duration(d).String()
 }
