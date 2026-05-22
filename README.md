@@ -9,6 +9,7 @@ A self-hosted waiting list service written in Go. It lets you gate access to you
 - **Automatic scheduler** — periodically promotes users from the waiting list based on configurable batch size and time window.
 - **Admin web UI** — embedded single-page dashboard with user search, grant/revoke actions, and enlistment charts (protected by HTTP Basic Auth).
 - **Health endpoint** — `/healthz` pings the database and returns a structured JSON response (suitable for Kubernetes or Docker `HEALTHCHECK`).
+- **Multi-tenancy (projects)** — isolate users and waiting lists across multiple projects. Resolve the active project via an HTTP header, hostname mapping, or a default slug.
 - **Minimal dependencies** — Go standard library `net/http`, PostgreSQL via `lib/pq`, configuration via `koanf`.
 
 ## Requirements
@@ -57,6 +58,13 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
       "username": "admin",
       "passwordHash": "$2y$10$..."
     }
+  },
+  "projects": {
+    "headerName": "X-Project-ID",
+    "defaultSlug": "default",
+    "hostMapping": {
+      "api.acme.com": "acme-corp"
+    }
   }
 }
 ```
@@ -76,6 +84,9 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | `schedulerInterval.waitlistCheckInterval` | duration | `1h` | How often the scheduler wakes up to check for eligible entries. |
 | `admin.basicAuth.username` | string | — | Username for the admin panel. If empty, admin routes are disabled. |
 | `admin.basicAuth.passwordHash` | string | — | Bcrypt hash of the admin password. If empty, admin routes are disabled. |
+| `projects.headerName` | string | `X-Project-ID` | HTTP header used to identify the project (value is the project slug). |
+| `projects.defaultSlug` | string | `default` | Fallback project slug when no header or host mapping matches. |
+| `projects.hostMapping` | object | `{}` | Maps incoming `Host` header values to project slugs (e.g. `{"api.acme.com": "acme-corp"}`). |
 
 Duration values accept Go duration strings: `"30m"`, `"1h"`, `"24h"`, `"720h"` etc.
 
@@ -100,6 +111,8 @@ Every configuration field can be overridden with an environment variable. The ma
 | `schedulerInterval.waitlistCheckInterval` | `WL_SCHEDULERINTERVAL_WAITLISTCHECKINTERVAL` | `WL_SCHEDULERINTERVAL_WAITLISTCHECKINTERVAL=30m` |
 | `admin.basicAuth.username` | `WL_ADMIN_BASICAUTH_USERNAME` | `WL_ADMIN_BASICAUTH_USERNAME=admin` |
 | `admin.basicAuth.passwordHash` | `WL_ADMIN_BASICAUTH_PASSWORDHASH` | `WL_ADMIN_BASICAUTH_PASSWORDHASH='$2y$10$...'` |
+| `projects.headerName` | `WL_PROJECTS_HEADERNAME` | `WL_PROJECTS_HEADERNAME=X-Tenant` |
+| `projects.defaultSlug` | `WL_PROJECTS_DEFAULTSLUG` | `WL_PROJECTS_DEFAULTSLUG=default` |
 
 Environment variables take precedence over values in the JSON file.
 
@@ -177,6 +190,59 @@ When disabled, the server logs `"scheduler disabled, skipping"` on startup. User
 | Promote more users per batch | Increase `entryBatchSize` (e.g. `100`) |
 | Check more frequently | Decrease `waitlistCheckInterval` (e.g. `"10m"`) |
 | Slow drip (exclusive feel) | `entryBatchSize: 5`, `entryWindowInterval: "168h"` (one week) |
+
+## Multi-Tenancy (Projects)
+
+The service supports multiple isolated projects (tenants). Each project has its own users, waiting list, and scheduler state. A `project` table stores project metadata and per-project scheduler settings.
+
+A "default" project is created automatically by the initial migration, so single-tenant deployments work out of the box without any project configuration.
+
+### Project Resolution
+
+On each incoming request, the active project is resolved using a 3-step fallback:
+
+1. **HTTP Header** — if the configured header (default `X-Project-ID`) contains a project slug, that project is used.
+2. **Host Mapping** — if the request `Host` matches an entry in `projects.hostMapping`, the mapped slug is used.
+3. **Default Slug** — falls back to `projects.defaultSlug` (default `"default"`).
+
+If resolution produces an unknown slug, the request is rejected with `400 Bad Request`.
+
+### Data Isolation
+
+- Email uniqueness is enforced **per project** — the same email may exist in different projects.
+- Scheduler state is tracked per project — each project maintains independent batch cooldowns.
+- Admin endpoints accept an optional `?project=<slug>` query parameter to filter results to a single project. Omitting it returns a cross-project view.
+
+### Per-Project Configuration
+
+Each project row in the database can override global scheduler settings:
+
+| Column | Overrides | Description |
+|--------|-----------|-------------|
+| `entry_batch_size` | `waitlist.entryBatchSize` | Max users promoted per batch for this project. |
+| `entry_window_interval` | `waitlist.entryWindowInterval` | Entry age threshold and cooldown for this project. |
+| `scheduler_disabled` | `schedulerInterval.disabled` | Disable automatic granting for this project only. |
+
+When a per-project value is `NULL`, the global configuration applies.
+
+### Example: Multi-Project Setup
+
+```json
+{
+  "projects": {
+    "headerName": "X-Project-ID",
+    "defaultSlug": "default",
+    "hostMapping": {
+      "waitlist.acme.com": "acme-corp",
+      "waitlist.other.io": "other"
+    }
+  }
+}
+```
+
+With this configuration:
+- Requests with `X-Project-ID: acme-corp` or to host `waitlist.acme.com` are routed to the "acme-corp" project.
+- Requests without a header or recognized host fall back to the "default" project.
 
 ## API Usage
 
@@ -279,9 +345,9 @@ All `/admin/*` endpoints require HTTP Basic Auth (configured as described above)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/dashboard` | Counters and enlistment-per-day chart data. Query: `?days=N` (default 90, max 365). |
-| `GET` | `/admin/users/access` | List users with access. Query: `?email=`, `?limit=`, `?offset=`. |
-| `GET` | `/admin/users/waitlist` | List users on the waiting list. Query: `?email=`, `?limit=`, `?offset=`. |
+| `GET` | `/admin/dashboard` | Counters and enlistment-per-day chart data. Query: `?days=N` (default 90, max 365), `?project=<slug>`. |
+| `GET` | `/admin/users/access` | List users with access. Query: `?email=`, `?limit=`, `?offset=`, `?project=<slug>`. |
+| `GET` | `/admin/users/waitlist` | List users on the waiting list. Query: `?email=`, `?limit=`, `?offset=`, `?project=<slug>`. |
 | `POST` | `/admin/users/{id}/grant-access` | Grant access to a user (removes them from the waiting list atomically). |
 | `POST` | `/admin/users/{id}/revoke-access` | Revoke access. Body: `{"reason": "..."}` (1-500 chars, required). |
 | `DELETE` | `/admin/waitlist/{id}` | Remove a waiting list entry by its entry ID. |
