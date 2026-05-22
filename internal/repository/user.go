@@ -142,28 +142,6 @@ func (r *UserRepository) GetUserInfoByEmails(ctx context.Context, projectID stri
 	return users, nil
 }
 
-// SetHasAccess sets has_access to true for the users with the given IDs.
-// Returns model.ErrUserNotFound if none of the given IDs match any rows.
-//
-// Deprecated: use GrantAccess (or GrantAccessTx) so the audit columns
-// (access_granted_at, access_granted_by) are populated. This wrapper exists
-// only so the existing scheduler call site continues to compile during the
-// plan-16 transition.
-//
-//goland:noinspection ALL
-func (r *UserRepository) SetHasAccess(ctx context.Context, ids []string) error {
-	return r.GrantAccessTx(ctx, r.db, ids, "scheduler")
-}
-
-// SetHasAccessTx is the transactional form of SetHasAccess.
-//
-// Deprecated: use GrantAccessTx(ctx, tx, ids, "scheduler") directly.
-//
-//goland:noinspection ALL
-func (r *UserRepository) SetHasAccessTx(ctx context.Context, tx model.DBTX, ids []string) error {
-	return r.GrantAccessTx(ctx, tx, ids, "scheduler")
-}
-
 // GrantAccess flips has_access to true for the given user IDs and records
 // the grant timestamp/source.
 func (r *UserRepository) GrantAccess(ctx context.Context, ids []string, source string) error {

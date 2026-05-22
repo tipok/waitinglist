@@ -261,7 +261,7 @@ func TestCreate_PopulatesAllFields(t *testing.T) {
 	}
 }
 
-func TestSetHasAccess_SingleUser(t *testing.T) {
+func TestGrantAccess_SingleUser(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
@@ -276,7 +276,7 @@ func TestSetHasAccess_SingleUser(t *testing.T) {
 		t.Fatalf("create failed: %v", err)
 	}
 
-	if err := repo.SetHasAccess(ctx, []string{user.ID}); err != nil {
+	if err := repo.GrantAccess(ctx, []string{user.ID}, "scheduler"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -289,7 +289,7 @@ func TestSetHasAccess_SingleUser(t *testing.T) {
 	}
 }
 
-func TestSetHasAccess_MultipleUsers(t *testing.T) {
+func TestGrantAccess_MultipleUsers(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 	ctx := t.Context()
@@ -311,7 +311,7 @@ func TestSetHasAccess_MultipleUsers(t *testing.T) {
 		t.Fatalf("create user2 failed: %v", err)
 	}
 
-	if err := repo.SetHasAccess(ctx, []string{user1.ID, user2.ID}); err != nil {
+	if err := repo.GrantAccess(ctx, []string{user1.ID, user2.ID}, "scheduler"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -332,21 +332,21 @@ func TestSetHasAccess_MultipleUsers(t *testing.T) {
 	}
 }
 
-func TestSetHasAccess_EmptySlice(t *testing.T) {
+func TestGrantAccess_EmptySlice(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	err := repo.SetHasAccess(t.Context(), []string{})
+	err := repo.GrantAccess(t.Context(), []string{}, "scheduler")
 	if err != nil {
 		t.Fatalf("expected no error for empty slice, got %v", err)
 	}
 }
 
-func TestSetHasAccess_UserNotFound(t *testing.T) {
+func TestGrantAccess_UserNotFound(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewUserRepository(db)
 
-	err := repo.SetHasAccess(t.Context(), []string{"00000000-0000-0000-0000-000000000000"})
+	err := repo.GrantAccess(t.Context(), []string{"00000000-0000-0000-0000-000000000000"}, "scheduler")
 	if !errors.Is(err, model.ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
