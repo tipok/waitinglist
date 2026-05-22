@@ -14,7 +14,7 @@ import (
 	"github.com/tipok/waitinglist/internal/model"
 )
 
-var validSlugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var validSlugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const (
 	defaultAdminListLimit = 50
@@ -111,7 +111,12 @@ func (h *AdminHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	projectID, err := h.resolveProjectFilter(r)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		if errors.Is(err, model.ErrProjectNotFound) {
+			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
+		} else {
+			h.logger.Error("admin: project filter resolution failed", "error", err)
+			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		}
 		return
 	}
 
@@ -148,7 +153,12 @@ func (h *AdminHandler) handleListWithAccess(w http.ResponseWriter, r *http.Reque
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
 	projectID, err := h.resolveProjectFilter(r)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		if errors.Is(err, model.ErrProjectNotFound) {
+			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
+		} else {
+			h.logger.Error("admin: project filter resolution failed", "error", err)
+			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		}
 		return
 	}
 
@@ -183,7 +193,12 @@ func (h *AdminHandler) handleListWaitlist(w http.ResponseWriter, r *http.Request
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
 	projectID, err := h.resolveProjectFilter(r)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid project filter", h.logger)
+		if errors.Is(err, model.ErrProjectNotFound) {
+			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
+		} else {
+			h.logger.Error("admin: project filter resolution failed", "error", err)
+			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		}
 		return
 	}
 
@@ -209,6 +224,9 @@ func (h *AdminHandler) handleListWaitlist(w http.ResponseWriter, r *http.Request
 }
 
 func (h *AdminHandler) handleGrant(w http.ResponseWriter, r *http.Request) {
+	// TODO(multi-tenancy): validate that the target resource belongs to the
+	// project scope of the current admin session once per-admin project
+	// scoping is implemented.
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
 		WriteError(w, http.StatusBadRequest, "id is required", h.logger)
@@ -266,6 +284,9 @@ type revokeRequest struct {
 }
 
 func (h *AdminHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
+	// TODO(multi-tenancy): validate that the target resource belongs to the
+	// project scope of the current admin session once per-admin project
+	// scoping is implemented.
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
 		WriteError(w, http.StatusBadRequest, "id is required", h.logger)
@@ -320,6 +341,9 @@ func (h *AdminHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) handleDeleteWaitlist(w http.ResponseWriter, r *http.Request) {
+	// TODO(multi-tenancy): validate that the target resource belongs to the
+	// project scope of the current admin session once per-admin project
+	// scoping is implemented.
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
 		WriteError(w, http.StatusBadRequest, "id is required", h.logger)
@@ -372,7 +396,7 @@ type createProjectRequest struct {
 	Name                  string  `json:"name"`
 	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
 	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"`
+	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"` // stored but not yet used by scheduler
 	SchedulerDisabled     bool    `json:"scheduler_disabled"`
 }
 
@@ -395,6 +419,11 @@ func (h *AdminHandler) handleCreateProject(w http.ResponseWriter, r *http.Reques
 	}
 	if name == "" {
 		WriteError(w, http.StatusBadRequest, "name is required", h.logger)
+		return
+	}
+
+	if req.EntryBatchSize != nil && *req.EntryBatchSize < 1 {
+		WriteError(w, http.StatusBadRequest, "entry_batch_size must be >= 1", h.logger)
 		return
 	}
 
@@ -442,7 +471,7 @@ type updateProjectRequest struct {
 	Name                  *string `json:"name,omitempty"`
 	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
 	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"`
+	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"` // stored but not yet used by scheduler
 	SchedulerDisabled     *bool   `json:"scheduler_disabled,omitempty"`
 }
 
@@ -479,6 +508,10 @@ func (h *AdminHandler) handleUpdateProject(w http.ResponseWriter, r *http.Reques
 		existing.Name = name
 	}
 	if req.EntryBatchSize != nil {
+		if *req.EntryBatchSize < 1 {
+			WriteError(w, http.StatusBadRequest, "entry_batch_size must be >= 1", h.logger)
+			return
+		}
 		existing.EntryBatchSize = req.EntryBatchSize
 	}
 	if req.EntryWindowInterval != nil {
@@ -502,6 +535,10 @@ func (h *AdminHandler) handleUpdateProject(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.projectStore.Update(r.Context(), existing); err != nil {
+		if errors.Is(err, model.ErrProjectNotFound) {
+			WriteError(w, http.StatusNotFound, "project not found", h.logger)
+			return
+		}
 		h.logger.Error("admin update-project failed", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return

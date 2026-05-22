@@ -105,7 +105,11 @@ function setTab(name, updateHash) {
   if (!["dashboard", "access", "waitlist"].includes(name)) name = "dashboard";
   state.tab = name;
 
-  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab").forEach(b => {
+    const isActive = b.dataset.tab === name;
+    b.classList.toggle("active", isActive);
+    b.setAttribute("aria-selected", String(isActive));
+  });
   document.querySelectorAll(".tab-panel").forEach(p => p.hidden = (p.id !== `tab-${name}`));
 
   if (updateHash) location.hash = `tab=${name}`;
@@ -384,11 +388,19 @@ function openModal({ title, body, requireReason, onConfirm }) {
   document.getElementById("modal-error").classList.add("hidden");
   document.getElementById("modal").classList.remove("hidden");
   modalCallback = { requireReason, onConfirm };
+  document.addEventListener("keydown", handleModalKeydown);
 }
 
 function closeModal() {
   document.getElementById("modal").classList.add("hidden");
   modalCallback = null;
+  document.removeEventListener("keydown", handleModalKeydown);
+}
+
+function handleModalKeydown(e) {
+  if (e.key === "Escape") {
+    closeModal();
+  }
 }
 
 async function submitModal() {

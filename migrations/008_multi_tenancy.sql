@@ -77,7 +77,7 @@ END $$;
 ALTER TABLE scheduler_state DROP CONSTRAINT IF EXISTS scheduler_state_pkey;
 DO $$ BEGIN
     ALTER TABLE scheduler_state ADD PRIMARY KEY (project_id, key);
-EXCEPTION WHEN duplicate_table THEN NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
          WHEN invalid_table_definition THEN NULL;
 END $$;
 

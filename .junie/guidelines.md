@@ -32,6 +32,7 @@ waitinglist/
 │   │   ├── health.go               # GET /healthz — DB-ping liveness/readiness probe
 │   │   ├── ip.go                   # Client IP extraction (X-Forwarded-For → X-Real-Ip → RemoteAddr)
 │   │   ├── middleware.go           # LoggingMiddleware, JSONContentType, BasicAuthMiddleware
+│   │   ├── tenant.go              # Tenant resolution middleware (X-Project-ID / Host mapping)
 │   │   ├── response.go             # WriteJSON / WriteError helpers
 │   │   ├── admin.go                # /admin/* JSON endpoints (dashboard, lists, grant, revoke)
 │   │   ├── adminui/                # Embedded HTML/CSS/JS admin SPA (//go:embed static)
@@ -41,6 +42,7 @@ waitinglist/
 │   ├── logger/logger.go            # slog logger construction
 │   ├── model/model.go              # Data structures, sentinel errors, DB/Tx interfaces
 │   ├── repository/
+│   │   ├── project.go              # DB operations for project table
 │   │   ├── scheduler.go            # DB operations for scheduler_state table
 │   │   ├── user.go                 # DB operations for user_entity table (CRUD, grant, revoke)
 │   │   └── waitinglist.go          # DB operations for waiting_list table
@@ -52,7 +54,8 @@ waitinglist/
 │   ├── 004_user_created_at.sql
 │   ├── 005_user_entity_ip.sql      # ip_address column on user_entity
 │   ├── 006_has_access_one_way.sql  # One-way has_access trigger (dropped by 007)
-│   └── 007_access_audit_and_drop_one_way.sql  # Access audit columns; drops 006's trigger
+│   ├── 007_access_audit_and_drop_one_way.sql  # Access audit columns; drops 006's trigger
+│   └── 008_multi_tenancy.sql       # Multi-tenancy: project table, project_id columns, composite indexes
 ├── conf/dev.json                   # Development configuration file
 ├── docs/plans/                     # Feature plans
 ├── Dockerfile                      # Multi-stage build → distroless runtime
@@ -85,6 +88,9 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `schedulerInterval.waitlistCheckInterval` | duration | `1h` | How often the scheduler wakes up |
 | `admin.basicAuth.username` | string | — | Admin panel username (empty = admin routes disabled) |
 | `admin.basicAuth.passwordHash` | string | — | Bcrypt hash of admin password (empty = admin routes disabled) |
+| `projects.headerName` | string | `X-Project-ID` | Header name for project identification |
+| `projects.defaultSlug` | string | `default` | Fallback project slug when no header/host match |
+| `projects.hostMapping` | map[string]string | — | Host → project slug mapping (JSON config only) |
 
 #### Environment Variable Override
 
@@ -101,10 +107,12 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 - `schedulerInterval.waitlistCheckInterval` → `WL_SCHEDULERINTERVAL_WAITLISTCHECKINTERVAL`
 - `admin.basicAuth.username` → `WL_ADMIN_BASICAUTH_USERNAME`
 - `admin.basicAuth.passwordHash` → `WL_ADMIN_BASICAUTH_PASSWORDHASH`
+- `projects.headerName` → `WL_PROJECTS_HEADERNAME`
+- `projects.defaultSlug` → `WL_PROJECTS_DEFAULTSLUG`
 
 ### Database
 
-- PostgreSQL with three tables: `user_entity`, `waiting_list`, and `scheduler_state`.
+- PostgreSQL with four tables: `project`, `user_entity`, `waiting_list`, and `scheduler_state`.
 - Migrations are plain `.sql` files in `migrations/`, executed in alphabetical order on startup.
 - Schema uses `IF NOT EXISTS` for idempotent migrations.
 - All migrations run on every startup (no migration state table) — they must be written to be re-runnable.
@@ -135,9 +143,16 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 | `POST` | `/admin/users/{id}/grant-access` | **Admin · Basic Auth.** Admin-grants access (atomic with waitlist removal); returns the updated user. |
 | `POST` | `/admin/users/{id}/revoke-access` | **Admin · Basic Auth.** Body `{"reason":"…"}` (1..500 chars). Calls `RevokeAccess` with the authenticated admin as `revoked_by`. |
 | `DELETE` | `/admin/waitlist/{id}` | **Admin · Basic Auth.** Removes a single waiting-list row by entry id. |
+| `GET`  | `/admin/projects` | **Admin · Basic Auth.** List all projects. |
+| `POST` | `/admin/projects` | **Admin · Basic Auth.** Create a project (slug, name, scheduler config). |
+| `PUT`  | `/admin/projects/{id}` | **Admin · Basic Auth.** Update project name/scheduler config. |
 | `GET`  | `/admin/` (and `/admin/{asset}`) | **Admin · Basic Auth.** Embedded HTML/CSS/JS admin SPA (dashboard + lists + actions). Served from `embed.FS` in `internal/handler/adminui/`. |
 
+> **Note:** `GET /admin/dashboard`, `GET /admin/users/access`, and `GET /admin/users/waitlist` accept an optional `?project=<slug>` query parameter to scope results to a specific project.
+
 ### Scheduler Internals
+
+The scheduler iterates all non-disabled projects on each tick, processing each independently with per-project config (batch size, window interval).
 
 The scheduler (`internal/waitlist/waitlist.go`) runs as a background goroutine:
 
@@ -220,6 +235,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `20-healthcheck-config-decouple` | ✅ Complete | Stop requiring a config file in `--health-check` mode; resolve port via `WL_PORT` env → default |
 | `21-healthcheck-ipv4-loopback` | ✅ Complete | Probe `127.0.0.1` instead of `localhost` so the IPv4-bound server is reachable in distroless containers |
 | `22-healthcheck-ipv4-bind` | ✅ Complete | Bind server to `0.0.0.0:port` explicitly so `127.0.0.1` health probe succeeds when `IPV6_V6ONLY=1` in distroless containers |
+| `23-multi-tenancy` | ✅ Complete | Multi-tenancy: project-scoped users, waiting lists, and scheduler with tenant resolution middleware |
 
 ## Development Workflow
 

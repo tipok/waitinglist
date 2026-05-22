@@ -59,11 +59,13 @@ var (
 
 // Project represents a tenant project stored in the project table.
 type Project struct {
-	ID                    string    `json:"id"`
-	Slug                  string    `json:"slug"`
-	Name                  string    `json:"name"`
-	EntryBatchSize        *int      `json:"entry_batch_size,omitempty"`
-	EntryWindowInterval   *Duration `json:"entry_window_interval,omitempty"`
+	ID                  string    `json:"id"`
+	Slug                string    `json:"slug"`
+	Name                string    `json:"name"`
+	EntryBatchSize      *int      `json:"entry_batch_size,omitempty"`
+	EntryWindowInterval *Duration `json:"entry_window_interval,omitempty"`
+	// WaitlistCheckInterval is stored for future use but not yet honored by
+	// the scheduler, which uses the global config interval for all projects.
 	WaitlistCheckInterval *Duration `json:"waitlist_check_interval,omitempty"`
 	SchedulerDisabled     bool      `json:"scheduler_disabled"`
 	CreatedAt             time.Time `json:"created_at"`
