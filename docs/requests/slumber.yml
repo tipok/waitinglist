@@ -1,0 +1,302 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/LucasPickering/slumber/refs/tags/v5.3.0/schemas/collection.json
+
+.base_headers: &base_headers
+  Accept: application/json
+  Content-Type: application/json
+
+profiles:
+  local:
+    name: Local
+    default: true
+    data:
+      host: http://localhost:8081
+      admin_username: admin
+      admin_password: admin
+
+requests:
+  health:
+    name: Health Check
+    method: GET
+    url: "{{host}}/healthz"
+
+  default_project:
+    name: Default Project
+    requests:
+      add_john:
+        name: Add John Doe
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: default
+        body:
+          type: json
+          data:
+            firstname: John
+            lastname: Doe
+            email: john.doe@example.com
+
+      add_jane:
+        name: Add Jane Smith
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: default
+        body:
+          type: json
+          data:
+            firstname: Jane
+            lastname: Smith
+            email: jane.smith@example.com
+
+      list_waitlist:
+        name: List Waitlist
+        method: GET
+        url: "{{host}}/waitinglist"
+        headers:
+          X-Project-ID: default
+
+      lookup_user:
+        name: Lookup User by Email
+        method: GET
+        url: "{{host}}/waitinglist/users"
+        headers:
+          X-Project-ID: default
+        query:
+          email: john.doe@example.com
+
+  beta_app:
+    name: Beta App Project
+    requests:
+      add_alice:
+        name: Add Alice Johnson
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: beta-app
+        body:
+          type: json
+          data:
+            firstname: Alice
+            lastname: Johnson
+            email: alice.johnson@example.com
+
+      add_bob:
+        name: Add Bob Williams
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: beta-app
+        body:
+          type: json
+          data:
+            firstname: Bob
+            lastname: Williams
+            email: bob.williams@example.com
+
+      add_charlie:
+        name: Add Charlie Brown
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: beta-app
+        body:
+          type: json
+          data:
+            firstname: Charlie
+            lastname: Brown
+            email: charlie.brown@example.com
+
+      list_waitlist:
+        name: List Waitlist
+        method: GET
+        url: "{{host}}/waitinglist"
+        headers:
+          X-Project-ID: beta-app
+
+      lookup_user:
+        name: Lookup User by Email
+        method: GET
+        url: "{{host}}/waitinglist/users"
+        headers:
+          X-Project-ID: beta-app
+        query:
+          email: alice.johnson@example.com
+
+  internal_tools:
+    name: Internal Tools Project
+    requests:
+      add_eve:
+        name: Add Eve Davis
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: internal-tools
+        body:
+          type: json
+          data:
+            firstname: Eve
+            lastname: Davis
+            email: eve.davis@company.internal
+
+      add_frank:
+        name: Add Frank Miller
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: internal-tools
+        body:
+          type: json
+          data:
+            firstname: Frank
+            lastname: Miller
+            email: frank.miller@company.internal
+
+      list_waitlist:
+        name: List Waitlist
+        method: GET
+        url: "{{host}}/waitinglist"
+        headers:
+          X-Project-ID: internal-tools
+
+  errors:
+    name: Error Cases
+    requests:
+      duplicate_email:
+        name: Duplicate Email (expect 409)
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: beta-app
+        body:
+          type: json
+          data:
+            firstname: Alice
+            lastname: Johnson
+            email: alice.johnson@example.com
+
+      cross_project_email:
+        name: Same Email Different Project (expect 201)
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: internal-tools
+        body:
+          type: json
+          data:
+            firstname: Alice
+            lastname: Johnson
+            email: alice.johnson@example.com
+
+      unknown_project:
+        name: Unknown Project (expect 400)
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: nonexistent-project
+        body:
+          type: json
+          data:
+            firstname: Test
+            lastname: User
+            email: test@example.com
+
+      missing_fields:
+        name: Missing Required Fields (expect 400)
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: default
+        body:
+          type: json
+          data:
+            firstname: ""
+            lastname: Doe
+            email: missing@example.com
+
+      invalid_email:
+        name: Invalid Email (expect 400)
+        method: POST
+        url: "{{host}}/waitinglist"
+        headers:
+          <<: *base_headers
+          X-Project-ID: beta-app
+        body:
+          type: json
+          data:
+            firstname: John
+            lastname: Doe
+            email: not-an-email
+
+      missing_email_param:
+        name: Missing Email Query Param (expect 400)
+        method: GET
+        url: "{{host}}/waitinglist/users"
+        headers:
+          X-Project-ID: default
+
+  admin:
+    name: Admin
+    requests:
+      list_projects:
+        name: List Projects
+        method: GET
+        url: "{{host}}/admin/projects"
+        authentication:
+          type: basic
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+
+      dashboard_default:
+        name: Dashboard (default)
+        method: GET
+        url: "{{host}}/admin/dashboard"
+        authentication:
+          type: basic
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        query:
+          project: default
+
+      dashboard_beta:
+        name: Dashboard (beta-app)
+        method: GET
+        url: "{{host}}/admin/dashboard"
+        authentication:
+          type: basic
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        query:
+          project: beta-app
+
+      users_with_access:
+        name: Users with Access (beta-app)
+        method: GET
+        url: "{{host}}/admin/users/access"
+        authentication:
+          type: basic
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        query:
+          project: beta-app
+
+      waitlist_entries:
+        name: Waitlist Entries (internal-tools)
+        method: GET
+        url: "{{host}}/admin/users/waitlist"
+        authentication:
+          type: basic
+          username: "{{admin_username}}"
+          password: "{{admin_password}}"
+        query:
+          project: internal-tools

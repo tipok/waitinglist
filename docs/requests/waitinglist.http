@@ -1,6 +1,11 @@
-### Add a user to the waiting list
+### ========================================
+### Project: "default"
+### ========================================
+
+### Add a user to the default project waiting list
 POST http://localhost:8081/waitinglist
 Content-Type: application/json
+X-Project-ID: default
 
 {
   "firstname": "John",
@@ -8,9 +13,10 @@ Content-Type: application/json
   "email": "john.doe@example.com"
 }
 
-### Add another user to the waiting list
+### Add another user to the default project
 POST http://localhost:8081/waitinglist
 Content-Type: application/json
+X-Project-ID: default
 
 {
   "firstname": "Jane",
@@ -18,19 +24,130 @@ Content-Type: application/json
   "email": "jane.smith@example.com"
 }
 
-### Add a user with duplicate email (expect 409 Conflict)
+### Get all waiting list entries for the default project
+GET http://localhost:8081/waitinglist
+X-Project-ID: default
+
+### Look up a user by email in the default project
+GET http://localhost:8081/waitinglist/users?email=john.doe@example.com
+X-Project-ID: default
+
+### ========================================
+### Project: "beta-app"
+### ========================================
+
+### Add a user to the beta-app waiting list
 POST http://localhost:8081/waitinglist
 Content-Type: application/json
+X-Project-ID: beta-app
 
 {
-  "firstname": "John",
-  "lastname": "Doe",
-  "email": "john.doe@example.com"
+  "firstname": "Alice",
+  "lastname": "Johnson",
+  "email": "alice.johnson@example.com"
 }
 
-### Add a user with missing firstname (expect 400 Bad Request)
+### Add another user to beta-app
 POST http://localhost:8081/waitinglist
 Content-Type: application/json
+X-Project-ID: beta-app
+
+{
+  "firstname": "Bob",
+  "lastname": "Williams",
+  "email": "bob.williams@example.com"
+}
+
+### Add a third user to beta-app
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: beta-app
+
+{
+  "firstname": "Charlie",
+  "lastname": "Brown",
+  "email": "charlie.brown@example.com"
+}
+
+### Get all waiting list entries for beta-app
+GET http://localhost:8081/waitinglist
+X-Project-ID: beta-app
+
+### Look up a user by email in beta-app
+GET http://localhost:8081/waitinglist/users?email=alice.johnson@example.com
+X-Project-ID: beta-app
+
+### ========================================
+### Project: "internal-tools"
+### ========================================
+
+### Add a user to internal-tools waiting list
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: internal-tools
+
+{
+  "firstname": "Eve",
+  "lastname": "Davis",
+  "email": "eve.davis@company.internal"
+}
+
+### Add another user to internal-tools
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: internal-tools
+
+{
+  "firstname": "Frank",
+  "lastname": "Miller",
+  "email": "frank.miller@company.internal"
+}
+
+### Get all waiting list entries for internal-tools
+GET http://localhost:8081/waitinglist
+X-Project-ID: internal-tools
+
+### ========================================
+### Error cases
+### ========================================
+
+### Duplicate email within the same project (expect 409 Conflict)
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: beta-app
+
+{
+  "firstname": "Alice",
+  "lastname": "Johnson",
+  "email": "alice.johnson@example.com"
+}
+
+### Same email in a different project (expect 201 Created — emails are scoped per project)
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: internal-tools
+
+{
+  "firstname": "Alice",
+  "lastname": "Johnson",
+  "email": "alice.johnson@example.com"
+}
+
+### Unknown project slug (expect 400 Bad Request)
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: nonexistent-project
+
+{
+  "firstname": "Test",
+  "lastname": "User",
+  "email": "test@example.com"
+}
+
+### Missing required fields (expect 400 Bad Request)
+POST http://localhost:8081/waitinglist
+Content-Type: application/json
+X-Project-ID: default
 
 {
   "firstname": "",
@@ -38,29 +155,10 @@ Content-Type: application/json
   "email": "missing@example.com"
 }
 
-### Add a user with missing lastname (expect 400 Bad Request)
+### Invalid email (expect 400 Bad Request)
 POST http://localhost:8081/waitinglist
 Content-Type: application/json
-
-{
-  "firstname": "John",
-  "lastname": "",
-  "email": "missing@example.com"
-}
-
-### Add a user with missing email (expect 400 Bad Request)
-POST http://localhost:8081/waitinglist
-Content-Type: application/json
-
-{
-  "firstname": "John",
-  "lastname": "Doe",
-  "email": ""
-}
-
-### Add a user with invalid email (expect 400 Bad Request)
-POST http://localhost:8081/waitinglist
-Content-Type: application/json
+X-Project-ID: beta-app
 
 {
   "firstname": "John",
@@ -68,14 +166,30 @@ Content-Type: application/json
   "email": "not-an-email"
 }
 
-### Get all waiting list entries
-GET http://localhost:8081/waitinglist
-
-### Get requested users 400, because email is lacking
+### Missing email query param (expect 400 Bad Request)
 GET http://localhost:8081/waitinglist/users
+X-Project-ID: default
 
-### Get requested users one email
-GET http://localhost:8081/waitinglist/users?email=john.doe@example.com
+### ========================================
+### Admin — project-scoped queries
+### ========================================
 
-### Get requested users multiple emails
-GET http://localhost:8081/waitinglist/users?email=alice@test.local&email=bob@test.local&email=eve1@test.local
+### List all projects
+GET http://localhost:8081/admin/projects
+Authorization: Basic YWRtaW46YWRtaW4=
+
+### Dashboard for default project
+GET http://localhost:8081/admin/dashboard?project=default
+Authorization: Basic YWRtaW46YWRtaW4=
+
+### Dashboard for beta-app project
+GET http://localhost:8081/admin/dashboard?project=beta-app
+Authorization: Basic YWRtaW46YWRtaW4=
+
+### Users with access in beta-app
+GET http://localhost:8081/admin/users/access?project=beta-app
+Authorization: Basic YWRtaW46YWRtaW4=
+
+### Waitlist entries for internal-tools
+GET http://localhost:8081/admin/users/waitlist?project=internal-tools
+Authorization: Basic YWRtaW46YWRtaW4=
