@@ -69,7 +69,12 @@ func (pr *ProjectResolver) Middleware(next http.Handler) http.Handler {
 
 		if slug == "" {
 			// hostMapping is immutable after construction; no lock needed.
-			host := stripPort(r.Host)
+			originalHost := r.Header.Get("X-Forwarded-Host")
+			if originalHost == "" {
+				originalHost = r.Host // fallback if no proxy
+			}
+
+			host := stripPort(originalHost)
 			if mapped, ok := pr.hostMapping[host]; ok {
 				slug = mapped
 			}
