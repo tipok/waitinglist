@@ -100,6 +100,9 @@ func TestLoad_ValidFullConfig(t *testing.T) {
 		},
 		"schedulerInterval": {
 			"waitlistCheckInterval": "2h"
+		},
+		"projects": {
+			"definitions": {"default": {"name": "Default"}}
 		}
 	}`)
 
@@ -139,6 +142,9 @@ func TestLoad_AllFieldsMapped(t *testing.T) {
 		},
 		"schedulerInterval": {
 			"waitlistCheckInterval": "30m"
+		},
+		"projects": {
+			"definitions": {"default": {"name": "Default"}}
 		}
 	}`)
 
@@ -164,7 +170,7 @@ func TestLoad_AllFieldsMapped(t *testing.T) {
 }
 
 func TestLoad_DefaultsApplied_EmptyObject(t *testing.T) {
-	path := writeTempConfig(t, `{}`)
+	path := writeTempConfig(t, `{"projects":{"definitions":{"default":{"name":"Default"}}}}`)
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -191,7 +197,7 @@ func TestLoad_DefaultsApplied_EmptyObject(t *testing.T) {
 }
 
 func TestLoad_PartialConfig_OnlyPort(t *testing.T) {
-	path := writeTempConfig(t, `{"port": 4000}`)
+	path := writeTempConfig(t, `{"port": 4000, "projects":{"definitions":{"default":{"name":"Default"}}}}`)
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -215,7 +221,7 @@ func TestLoad_PartialConfig_OnlyPort(t *testing.T) {
 }
 
 func TestLoad_PartialConfig_OnlyDatabase(t *testing.T) {
-	path := writeTempConfig(t, `{"database": {"url": "postgres://other:5432/db"}}`)
+	path := writeTempConfig(t, `{"database": {"url": "postgres://other:5432/db"}, "projects":{"definitions":{"default":{"name":"Default"}}}}`)
 
 	cfg, err := Load(path)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 func TestGetLastSuccess_NoRow(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
 	got, err := repo.GetLastSuccess(t.Context(), pid, "nonexistent_key")
 	if err != nil {
@@ -22,7 +22,7 @@ func TestGetLastSuccess_NoRow(t *testing.T) {
 func TestUpdateLastSuccess_InsertsAndReturnsTimestamp(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
 	key := "test_last_success"
 	before := time.Now().Add(-1 * time.Second)
@@ -47,7 +47,7 @@ func TestUpdateLastSuccess_InsertsAndReturnsTimestamp(t *testing.T) {
 func TestUpdateLastSuccess_UpsertUpdatesTimestamp(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
 	key := "test_upsert"
 
@@ -82,7 +82,7 @@ func TestUpdateLastSuccess_UpsertUpdatesTimestamp(t *testing.T) {
 func TestUpdateLastSuccess_RollbackOnTxFailure(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSchedulerRepository(db)
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
 	key := "test_rollback"
 

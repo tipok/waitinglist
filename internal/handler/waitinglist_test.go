@@ -85,7 +85,7 @@ func (m *mockWaitingListStore) BeginTx(ctx context.Context) (model.Tx, error) {
 	return m.beginTxFn(ctx)
 }
 
-var testProject = &model.Project{ID: "test-project-id", Slug: "test", Name: "Test"}
+var testProject = &model.Project{Slug: "test", Name: "Test"}
 
 func newWaitingListTestHandler(userStore WaitingListUserStore, wlStore WaitingListStore) *http.ServeMux {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

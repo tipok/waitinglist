@@ -11,12 +11,8 @@ import (
 
 const schedulerKeyWaitlistLastSuccess = "waitlist_last_success"
 
-type projectStore interface {
-	GetAll(ctx context.Context) ([]model.Project, error)
-}
-
 type waitingListStore interface {
-	GetWithOffsetLimit(ctx context.Context, projectID string, offset, limit *int) ([]model.WaitingListEntry, error)
+	GetWithOffsetLimit(ctx context.Context, projectSlug string, offset, limit *int) ([]model.WaitingListEntry, error)
 	DeleteByIDsTx(ctx context.Context, tx model.DBTX, ids []string) error
 	BeginTx(ctx context.Context) (model.Tx, error)
 }
@@ -26,15 +22,15 @@ type userStore interface {
 }
 
 type schedulerStore interface {
-	GetLastSuccess(ctx context.Context, projectID, key string) (time.Time, error)
-	UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectID, key string) error
+	GetLastSuccess(ctx context.Context, projectSlug, key string) (time.Time, error)
+	UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectSlug, key string) error
 }
 
 func Start(
 	ctx context.Context,
 	cfg *config.Config,
 	logger *slog.Logger,
-	projectRepo projectStore,
+	projects []model.Project,
 	waitingListRepo waitingListStore,
 	userRepo userStore,
 	schedulerRepo schedulerStore,
@@ -59,7 +55,7 @@ func Start(
 			windowInterval = time.Duration(*p.EntryWindowInterval)
 		}
 
-		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, p.ID, schedulerKeyWaitlistLastSuccess)
+		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, p.Slug, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
 			logger.Error("failed to get last success", "error", err, "project", p.Slug)
 			return
@@ -68,7 +64,7 @@ func Start(
 			return
 		}
 
-		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, p.ID, nil, &batchSize)
+		entries, err := waitingListRepo.GetWithOffsetLimit(ctx, p.Slug, nil, &batchSize)
 		if err != nil {
 			logger.Error("failed to get waiting list", "error", err, "project", p.Slug)
 			return
@@ -106,7 +102,7 @@ func Start(
 			return
 		}
 
-		err = schedulerRepo.UpdateLastSuccess(ctx, tx, p.ID, schedulerKeyWaitlistLastSuccess)
+		err = schedulerRepo.UpdateLastSuccess(ctx, tx, p.Slug, schedulerKeyWaitlistLastSuccess)
 		if err != nil {
 			logger.Error("failed to update last success", "error", err, "project", p.Slug)
 			return
@@ -122,11 +118,6 @@ func Start(
 	}
 
 	checkAllProjects := func() {
-		projects, err := projectRepo.GetAll(ctx)
-		if err != nil {
-			logger.Error("scheduler: failed to load projects", "error", err)
-			return
-		}
 		for _, p := range projects {
 			processProject(p)
 		}

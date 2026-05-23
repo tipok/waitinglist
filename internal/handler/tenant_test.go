@@ -16,7 +16,7 @@ func newTestResolver(projects []model.Project, headerName, defaultSlug string, h
 }
 
 func TestTenantMiddleware_HeaderResolution(t *testing.T) {
-	projects := []model.Project{{ID: "id-a", Slug: "product-a", Name: "Product A"}}
+	projects := []model.Project{{Slug: "product-a", Name: "Product A"}}
 	resolver := newTestResolver(projects, "X-Project-ID", "", nil)
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +41,7 @@ func TestTenantMiddleware_HeaderResolution(t *testing.T) {
 }
 
 func TestTenantMiddleware_HostMapping(t *testing.T) {
-	projects := []model.Project{{ID: "id-b", Slug: "product-b", Name: "Product B"}}
+	projects := []model.Project{{Slug: "product-b", Name: "Product B"}}
 	hostMapping := map[string]string{"waitlist.product-b.com": "product-b"}
 	resolver := newTestResolver(projects, "X-Project-ID", "", hostMapping)
 
@@ -50,8 +50,8 @@ func TestTenantMiddleware_HostMapping(t *testing.T) {
 		if p == nil {
 			t.Fatal("expected project in context")
 		}
-		if p.ID != "id-b" {
-			t.Errorf("expected id id-b, got %s", p.ID)
+		if p.Slug != "product-b" {
+			t.Errorf("expected slug product-b, got %s", p.Slug)
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -68,8 +68,8 @@ func TestTenantMiddleware_HostMapping(t *testing.T) {
 
 func TestTenantMiddleware_HeaderPrecedenceOverHost(t *testing.T) {
 	projects := []model.Project{
-		{ID: "id-a", Slug: "product-a", Name: "Product A"},
-		{ID: "id-b", Slug: "product-b", Name: "Product B"},
+		{Slug: "product-a", Name: "Product A"},
+		{Slug: "product-b", Name: "Product B"},
 	}
 	hostMapping := map[string]string{"waitlist.product-b.com": "product-b"}
 	resolver := newTestResolver(projects, "X-Project-ID", "", hostMapping)
@@ -94,7 +94,7 @@ func TestTenantMiddleware_HeaderPrecedenceOverHost(t *testing.T) {
 }
 
 func TestTenantMiddleware_DefaultSlugFallback(t *testing.T) {
-	projects := []model.Project{{ID: "id-def", Slug: "default", Name: "Default"}}
+	projects := []model.Project{{Slug: "default", Name: "Default"}}
 	resolver := newTestResolver(projects, "X-Project-ID", "default", nil)
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +115,7 @@ func TestTenantMiddleware_DefaultSlugFallback(t *testing.T) {
 }
 
 func TestTenantMiddleware_NoIdentification_Returns400(t *testing.T) {
-	projects := []model.Project{{ID: "id-a", Slug: "product-a", Name: "Product A"}}
+	projects := []model.Project{{Slug: "product-a", Name: "Product A"}}
 	resolver := newTestResolver(projects, "X-Project-ID", "", nil)
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -134,7 +134,7 @@ func TestTenantMiddleware_NoIdentification_Returns400(t *testing.T) {
 }
 
 func TestTenantMiddleware_UnknownSlug_Returns400(t *testing.T) {
-	projects := []model.Project{{ID: "id-a", Slug: "product-a", Name: "Product A"}}
+	projects := []model.Project{{Slug: "product-a", Name: "Product A"}}
 	resolver := newTestResolver(projects, "X-Project-ID", "", nil)
 
 	handler := resolver.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -154,7 +154,7 @@ func TestTenantMiddleware_UnknownSlug_Returns400(t *testing.T) {
 }
 
 func TestTenantMiddleware_HostWithPort_StripsPort(t *testing.T) {
-	projects := []model.Project{{ID: "id-c", Slug: "product-c", Name: "Product C"}}
+	projects := []model.Project{{Slug: "product-c", Name: "Product C"}}
 	hostMapping := map[string]string{"product-c.com": "product-c"}
 	resolver := newTestResolver(projects, "X-Project-ID", "", hostMapping)
 

@@ -6,15 +6,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
-
-var validSlugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const (
 	defaultAdminListLimit = 50
@@ -29,9 +25,9 @@ const (
 // AdminUserStore defines the user-side persistence operations needed by the
 // admin handler. Kept narrow so handler tests can use a fake.
 type AdminUserStore interface {
-	CountByAccess(ctx context.Context, projectID string) (waitListCount int, withAccessCount int, err error)
-	EnlistmentsByDay(ctx context.Context, projectID string, days int) ([]model.DayCount, error)
-	ListWithAccess(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	CountByAccess(ctx context.Context, projectSlug string) (waitListCount int, withAccessCount int, err error)
+	EnlistmentsByDay(ctx context.Context, projectSlug string, days int) ([]model.DayCount, error)
+	ListWithAccess(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.UserEntity, error)
 	GetByID(ctx context.Context, id string) (*model.UserEntity, error)
 	// GrantAccessTx is called inside the grant transaction (alongside
 	// AdminWaitingListStore.DeleteByUserIDTx) so the two writes are atomic.
@@ -43,40 +39,24 @@ type AdminUserStore interface {
 // AdminWaitingListStore defines the waiting-list operations needed by the
 // admin handler.
 type AdminWaitingListStore interface {
-	ListJoined(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	ListJoined(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
 	DeleteByID(ctx context.Context, id string) error
 	DeleteByUserIDTx(ctx context.Context, tx model.DBTX, userID string) error
 	BeginTx(ctx context.Context) (model.Tx, error)
 }
 
-// AdminProjectStore defines project persistence operations needed by the admin handler.
-type AdminProjectStore interface {
-	GetAll(ctx context.Context) ([]model.Project, error)
-	GetBySlug(ctx context.Context, slug string) (*model.Project, error)
-	GetByID(ctx context.Context, id string) (*model.Project, error)
-	Create(ctx context.Context, p *model.Project) error
-	Update(ctx context.Context, p *model.Project) error
-}
-
-// ProjectCacheReloader allows the admin handler to refresh the tenant
-// middleware's project cache after mutations.
-type ProjectCacheReloader interface {
-	Reload(projects []model.Project)
-}
-
 // AdminHandler serves the /admin/* JSON endpoints. The caller is responsible
 // for wrapping the registered routes in BasicAuthMiddleware.
 type AdminHandler struct {
-	userStore     AdminUserStore
-	wlStore       AdminWaitingListStore
-	projectStore  AdminProjectStore
-	cacheReloader ProjectCacheReloader
-	logger        *slog.Logger
+	userStore AdminUserStore
+	wlStore   AdminWaitingListStore
+	projects  []model.Project
+	logger    *slog.Logger
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projectStore AdminProjectStore, cacheReloader ProjectCacheReloader, logger *slog.Logger) *AdminHandler {
-	return &AdminHandler{userStore: userStore, wlStore: wlStore, projectStore: projectStore, cacheReloader: cacheReloader, logger: logger}
+func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projects []model.Project, logger *slog.Logger) *AdminHandler {
+	return &AdminHandler{userStore: userStore, wlStore: wlStore, projects: projects, logger: logger}
 }
 
 // RegisterRoutes registers the admin routes on the given mux. Wrap the mux
@@ -89,8 +69,6 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/users/{id}/revoke-access", h.handleRevoke)
 	mux.HandleFunc("DELETE /admin/waitlist/{id}", h.handleDeleteWaitlist)
 	mux.HandleFunc("GET /admin/projects", h.handleListProjects)
-	mux.HandleFunc("POST /admin/projects", h.handleCreateProject)
-	mux.HandleFunc("PUT /admin/projects/{id}", h.handleUpdateProject)
 }
 
 type dashboardResponse struct {
@@ -109,25 +87,19 @@ func (h *AdminHandler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	projectID, err := h.resolveProjectFilter(r)
-	if err != nil {
-		if errors.Is(err, model.ErrProjectNotFound) {
-			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
-		} else {
-			h.logger.Error("admin: project filter resolution failed", "error", err)
-			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		}
+	projectSlug, ok := h.resolveProjectFilter(r, w)
+	if !ok {
 		return
 	}
 
-	waitList, withAccess, err := h.userStore.CountByAccess(ctx, projectID)
+	waitList, withAccess, err := h.userStore.CountByAccess(ctx, projectSlug)
 	if err != nil {
 		h.logger.Error("admin dashboard: count failed", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
 		return
 	}
 
-	series, err := h.userStore.EnlistmentsByDay(ctx, projectID, days)
+	series, err := h.userStore.EnlistmentsByDay(ctx, projectSlug, days)
 	if err != nil {
 		h.logger.Error("admin dashboard: enlistments query failed", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
@@ -151,14 +123,8 @@ type listWithAccessResponse struct {
 
 func (h *AdminHandler) handleListWithAccess(w http.ResponseWriter, r *http.Request) {
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
-	projectID, err := h.resolveProjectFilter(r)
-	if err != nil {
-		if errors.Is(err, model.ErrProjectNotFound) {
-			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
-		} else {
-			h.logger.Error("admin: project filter resolution failed", "error", err)
-			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		}
+	projectSlug, ok := h.resolveProjectFilter(r, w)
+	if !ok {
 		return
 	}
 
@@ -173,7 +139,7 @@ func (h *AdminHandler) handleListWithAccess(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	users, err := h.userStore.ListWithAccess(r.Context(), projectID, emailLike, limit, offset)
+	users, err := h.userStore.ListWithAccess(r.Context(), projectSlug, emailLike, limit, offset)
 	if err != nil {
 		h.logger.Error("admin list-with-access failed", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
@@ -191,14 +157,8 @@ type listWaitlistResponse struct {
 
 func (h *AdminHandler) handleListWaitlist(w http.ResponseWriter, r *http.Request) {
 	emailLike := strings.TrimSpace(r.URL.Query().Get("email"))
-	projectID, err := h.resolveProjectFilter(r)
-	if err != nil {
-		if errors.Is(err, model.ErrProjectNotFound) {
-			WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
-		} else {
-			h.logger.Error("admin: project filter resolution failed", "error", err)
-			WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		}
+	projectSlug, ok := h.resolveProjectFilter(r, w)
+	if !ok {
 		return
 	}
 
@@ -213,7 +173,7 @@ func (h *AdminHandler) handleListWaitlist(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	entries, err := h.wlStore.ListJoined(r.Context(), projectID, emailLike, limit, offset)
+	entries, err := h.wlStore.ListJoined(r.Context(), projectSlug, emailLike, limit, offset)
 	if err != nil {
 		h.logger.Error("admin list-waitlist failed", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
@@ -365,207 +325,26 @@ func (h *AdminHandler) handleDeleteWaitlist(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// resolveProjectFilter reads an optional ?project=<slug> query parameter and
-// resolves it to a project ID. Returns "" (meaning all projects) when the
-// parameter is absent. Returns an error when the slug is unknown or the DB
-// lookup fails.
-func (h *AdminHandler) resolveProjectFilter(r *http.Request) (string, error) {
+// resolveProjectFilter reads an optional ?project=<slug> query parameter.
+// Returns "" (meaning all projects) when the parameter is absent. Writes
+// an error response and returns ok=false if the slug is not in the
+// configured project list.
+func (h *AdminHandler) resolveProjectFilter(r *http.Request, w http.ResponseWriter) (string, bool) {
 	slug := strings.TrimSpace(r.URL.Query().Get("project"))
 	if slug == "" {
-		return "", nil
+		return "", true
 	}
-	p, err := h.projectStore.GetBySlug(r.Context(), slug)
-	if err != nil {
-		return "", err
+	for _, p := range h.projects {
+		if p.Slug == slug {
+			return slug, true
+		}
 	}
-	return p.ID, nil
+	WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
+	return "", false
 }
 
-func (h *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Request) {
-	projects, err := h.projectStore.GetAll(r.Context())
-	if err != nil {
-		h.logger.Error("admin list-projects failed", "error", err)
-		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		return
-	}
-	WriteJSON(w, http.StatusOK, projects, h.logger)
-}
-
-type createProjectRequest struct {
-	Slug                  string  `json:"slug"`
-	Name                  string  `json:"name"`
-	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
-	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"` // stored but not yet used by scheduler
-	SchedulerDisabled     bool    `json:"scheduler_disabled"`
-}
-
-func (h *AdminHandler) handleCreateProject(w http.ResponseWriter, r *http.Request) {
-	var req createProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid JSON body", h.logger)
-		return
-	}
-
-	slug := strings.TrimSpace(req.Slug)
-	name := strings.TrimSpace(req.Name)
-	if slug == "" {
-		WriteError(w, http.StatusBadRequest, "slug is required", h.logger)
-		return
-	}
-	if !validSlugRe.MatchString(slug) {
-		WriteError(w, http.StatusBadRequest, "slug must be lowercase alphanumeric with hyphens", h.logger)
-		return
-	}
-	if name == "" {
-		WriteError(w, http.StatusBadRequest, "name is required", h.logger)
-		return
-	}
-
-	if req.EntryBatchSize != nil && *req.EntryBatchSize < 1 {
-		WriteError(w, http.StatusBadRequest, "entry_batch_size must be >= 1", h.logger)
-		return
-	}
-
-	p := &model.Project{
-		Slug:              slug,
-		Name:              name,
-		EntryBatchSize:    req.EntryBatchSize,
-		SchedulerDisabled: req.SchedulerDisabled,
-	}
-	if req.EntryWindowInterval != nil {
-		d, err := parseDurationString(*req.EntryWindowInterval)
-		if err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid entry_window_interval", h.logger)
-			return
-		}
-		p.EntryWindowInterval = &d
-	}
-	if req.WaitlistCheckInterval != nil {
-		d, err := parseDurationString(*req.WaitlistCheckInterval)
-		if err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid waitlist_check_interval", h.logger)
-			return
-		}
-		p.WaitlistCheckInterval = &d
-	}
-
-	if err := h.projectStore.Create(r.Context(), p); err != nil {
-		if errors.Is(err, model.ErrDuplicateProjectSlug) {
-			WriteError(w, http.StatusConflict, "project slug already exists", h.logger)
-			return
-		}
-		h.logger.Error("admin create-project failed", "error", err)
-		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		return
-	}
-
-	h.reloadProjectCache(r.Context())
-
-	h.logger.Info("admin project created",
-		"admin_user", AdminUserFromContext(r.Context()), "project_slug", slug)
-	WriteJSON(w, http.StatusCreated, p, h.logger)
-}
-
-type updateProjectRequest struct {
-	Name                  *string `json:"name,omitempty"`
-	EntryBatchSize        *int    `json:"entry_batch_size,omitempty"`
-	EntryWindowInterval   *string `json:"entry_window_interval,omitempty"`
-	WaitlistCheckInterval *string `json:"waitlist_check_interval,omitempty"` // stored but not yet used by scheduler
-	SchedulerDisabled     *bool   `json:"scheduler_disabled,omitempty"`
-}
-
-func (h *AdminHandler) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		WriteError(w, http.StatusBadRequest, "id is required", h.logger)
-		return
-	}
-
-	existing, err := h.projectStore.GetByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, model.ErrProjectNotFound) {
-			WriteError(w, http.StatusNotFound, "project not found", h.logger)
-			return
-		}
-		h.logger.Error("admin update-project: fetch failed", "error", err)
-		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		return
-	}
-
-	var req updateProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid JSON body", h.logger)
-		return
-	}
-
-	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" {
-			WriteError(w, http.StatusBadRequest, "name must not be empty", h.logger)
-			return
-		}
-		existing.Name = name
-	}
-	if req.EntryBatchSize != nil {
-		if *req.EntryBatchSize < 1 {
-			WriteError(w, http.StatusBadRequest, "entry_batch_size must be >= 1", h.logger)
-			return
-		}
-		existing.EntryBatchSize = req.EntryBatchSize
-	}
-	if req.EntryWindowInterval != nil {
-		d, err := parseDurationString(*req.EntryWindowInterval)
-		if err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid entry_window_interval", h.logger)
-			return
-		}
-		existing.EntryWindowInterval = &d
-	}
-	if req.WaitlistCheckInterval != nil {
-		d, err := parseDurationString(*req.WaitlistCheckInterval)
-		if err != nil {
-			WriteError(w, http.StatusBadRequest, "invalid waitlist_check_interval", h.logger)
-			return
-		}
-		existing.WaitlistCheckInterval = &d
-	}
-	if req.SchedulerDisabled != nil {
-		existing.SchedulerDisabled = *req.SchedulerDisabled
-	}
-
-	if err := h.projectStore.Update(r.Context(), existing); err != nil {
-		if errors.Is(err, model.ErrProjectNotFound) {
-			WriteError(w, http.StatusNotFound, "project not found", h.logger)
-			return
-		}
-		h.logger.Error("admin update-project failed", "error", err)
-		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
-		return
-	}
-
-	h.reloadProjectCache(r.Context())
-
-	h.logger.Info("admin project updated",
-		"admin_user", AdminUserFromContext(r.Context()), "project_id", id)
-	WriteJSON(w, http.StatusOK, existing, h.logger)
-}
-
-func (h *AdminHandler) reloadProjectCache(ctx context.Context) {
-	if h.cacheReloader == nil {
-		return
-	}
-	projects, err := h.projectStore.GetAll(ctx)
-	if err != nil {
-		h.logger.Error("failed to reload project cache", "error", err)
-		return
-	}
-	h.cacheReloader.Reload(projects)
-}
-
-func parseDurationString(s string) (model.Duration, error) {
-	d, err := time.ParseDuration(s)
-	return model.Duration(d), err
+func (h *AdminHandler) handleListProjects(w http.ResponseWriter, _ *http.Request) {
+	WriteJSON(w, http.StatusOK, h.projects, h.logger)
 }
 
 // parseIntQuery parses a query parameter as an int, applying a default when

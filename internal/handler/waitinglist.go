@@ -14,14 +14,14 @@ import (
 // WaitingListUserStore defines user persistence operations needed by the waiting list handler.
 type WaitingListUserStore interface {
 	CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
-	GetByEmailTx(ctx context.Context, tx model.DBTX, projectID, email string) (*model.UserEntity, error)
-	GetUserInfoByEmails(ctx context.Context, projectID string, emails []string) ([]model.UserInfo, error)
+	GetByEmailTx(ctx context.Context, tx model.DBTX, projectSlug, email string) (*model.UserEntity, error)
+	GetUserInfoByEmails(ctx context.Context, projectSlug string, emails []string) ([]model.UserInfo, error)
 }
 
 // WaitingListStore defines waiting list persistence operations.
 type WaitingListStore interface {
-	Add(ctx context.Context, tx model.DBTX, projectID, userID string) (*model.WaitingListEntry, error)
-	GetAll(ctx context.Context, projectID string) ([]model.WaitingListEntry, error)
+	Add(ctx context.Context, tx model.DBTX, projectSlug, userID string) (*model.WaitingListEntry, error)
+	GetAll(ctx context.Context, projectSlug string) ([]model.WaitingListEntry, error)
 	BeginTx(ctx context.Context) (model.Tx, error)
 }
 
@@ -90,7 +90,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Look up or create user entity within the transaction.
-	user, err := h.userStore.GetByEmailTx(ctx, tx, project.ID, req.Email)
+	user, err := h.userStore.GetByEmailTx(ctx, tx, project.Slug, req.Email)
 	if err != nil {
 		if !errors.Is(err, model.ErrUserNotFound) {
 			h.logger.Error("Failed to look up user by email", "error", err)
@@ -101,11 +101,11 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 		// User does not exist — create a new one.
 		ip := ClientIP(r)
 		user = &model.UserEntity{
-			ProjectID: project.ID,
-			Firstname: req.Firstname,
-			Lastname:  req.Lastname,
-			Email:     req.Email,
-			IPAddress: &ip,
+			ProjectSlug: project.Slug,
+			Firstname:   req.Firstname,
+			Lastname:    req.Lastname,
+			Email:       req.Email,
+			IPAddress:   &ip,
 		}
 		if err := h.userStore.CreateTx(ctx, tx, user); err != nil {
 			h.logger.Error("Failed to create user", "error", err)
@@ -123,7 +123,7 @@ func (h *WaitingListHandler) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add user to the waiting list.
-	entry, err := h.waitListStore.Add(ctx, tx, project.ID, user.ID)
+	entry, err := h.waitListStore.Add(ctx, tx, project.Slug, user.ID)
 	if err != nil {
 		if errors.Is(err, model.ErrAlreadyOnWaitingList) {
 			WriteError(w, http.StatusConflict, "user is already on the waiting list", h.logger)
@@ -153,7 +153,7 @@ func (h *WaitingListHandler) handleGetAll(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	entries, err := h.waitListStore.GetAll(r.Context(), project.ID)
+	entries, err := h.waitListStore.GetAll(r.Context(), project.Slug)
 	if err != nil {
 		h.logger.Error("Failed to get waiting list entries", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
@@ -189,7 +189,7 @@ func (h *WaitingListHandler) handleGetUsersByEmail(w http.ResponseWriter, r *htt
 		}
 	}
 
-	users, err := h.userStore.GetUserInfoByEmails(r.Context(), project.ID, emails)
+	users, err := h.userStore.GetUserInfoByEmails(r.Context(), project.Slug, emails)
 	if err != nil {
 		h.logger.Error("Failed to get users by email", "error", err)
 		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)

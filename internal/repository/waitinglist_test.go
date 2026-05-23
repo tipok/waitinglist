@@ -13,8 +13,8 @@ func TestWaitingList_Add_InsertsEntry(t *testing.T) {
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
 
-	pid := defaultProjectID(t, db)
-	user := &model.UserEntity{ProjectID: pid,
+	pid := defaultProjectSlug()
+	user := &model.UserEntity{ProjectSlug: pid,
 		Firstname: "John",
 		Lastname:  "Doe",
 		Email:     "wl-add@example.com",
@@ -23,7 +23,7 @@ func TestWaitingList_Add_InsertsEntry(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	entry, err := wlRepo.Add(ctx, db, defaultProjectID(t, db), user.ID)
+	entry, err := wlRepo.Add(ctx, db, defaultProjectSlug(), user.ID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -44,9 +44,9 @@ func TestWaitingList_Add_DuplicateUserID(t *testing.T) {
 	userRepo := NewUserRepository(db)
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
-	user := &model.UserEntity{ProjectID: pid,
+	user := &model.UserEntity{ProjectSlug: pid,
 		Firstname: "Jane",
 		Lastname:  "Doe",
 		Email:     "wl-dup@example.com",
@@ -55,11 +55,11 @@ func TestWaitingList_Add_DuplicateUserID(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	if _, err := wlRepo.Add(ctx, db, defaultProjectID(t, db), user.ID); err != nil {
+	if _, err := wlRepo.Add(ctx, db, defaultProjectSlug(), user.ID); err != nil {
 		t.Fatalf("first add failed: %v", err)
 	}
 
-	_, err := wlRepo.Add(ctx, db, defaultProjectID(t, db), user.ID)
+	_, err := wlRepo.Add(ctx, db, defaultProjectSlug(), user.ID)
 	if !errors.Is(err, model.ErrAlreadyOnWaitingList) {
 		t.Fatalf("expected ErrAlreadyOnWaitingList, got %v", err)
 	}
@@ -69,7 +69,7 @@ func TestWaitingList_Add_NonExistentUserID(t *testing.T) {
 	db := setupTestDB(t)
 	wlRepo := NewWaitingListRepository(db)
 
-	_, err := wlRepo.Add(t.Context(), db, defaultProjectID(t, db), "00000000-0000-0000-0000-000000000000")
+	_, err := wlRepo.Add(t.Context(), db, defaultProjectSlug(), "00000000-0000-0000-0000-000000000000")
 	if !errors.Is(err, model.ErrWaitingListForeignKey) {
 		t.Fatalf("expected ErrWaitingListForeignKey, got %v", err)
 	}
@@ -80,10 +80,10 @@ func TestWaitingList_GetAll_ReturnsEntries(t *testing.T) {
 	userRepo := NewUserRepository(db)
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
-	user1 := &model.UserEntity{ProjectID: pid, Firstname: "A", Lastname: "User", Email: "a@example.com"}
-	user2 := &model.UserEntity{ProjectID: pid, Firstname: "B", Lastname: "User", Email: "b@example.com"}
+	user1 := &model.UserEntity{ProjectSlug: pid, Firstname: "A", Lastname: "User", Email: "a@example.com"}
+	user2 := &model.UserEntity{ProjectSlug: pid, Firstname: "B", Lastname: "User", Email: "b@example.com"}
 	if err := userRepo.Create(ctx, user1); err != nil {
 		t.Fatalf("failed to create user1: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestWaitingList_GetAll_ReturnsEntries(t *testing.T) {
 func TestWaitingList_GetAll_EmptyTable(t *testing.T) {
 	db := setupTestDB(t)
 	wlRepo := NewWaitingListRepository(db)
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
 	entries, err := wlRepo.GetAll(t.Context(), pid)
 	if err != nil {
@@ -136,9 +136,9 @@ func TestWaitingList_Add_CreatedAtAutoPopulated(t *testing.T) {
 	userRepo := NewUserRepository(db)
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
-	user := &model.UserEntity{ProjectID: pid, Firstname: "Auto", Lastname: "Time", Email: "autotime@example.com"}
+	user := &model.UserEntity{ProjectSlug: pid, Firstname: "Auto", Lastname: "Time", Email: "autotime@example.com"}
 	if err := userRepo.Create(ctx, user); err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -158,9 +158,9 @@ func TestWaitingList_DeleteByIDs_SingleEntry(t *testing.T) {
 	userRepo := NewUserRepository(db)
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
-	user := &model.UserEntity{ProjectID: pid, Firstname: "Del", Lastname: "One", Email: "del-one@example.com"}
+	user := &model.UserEntity{ProjectSlug: pid, Firstname: "Del", Lastname: "One", Email: "del-one@example.com"}
 	if err := userRepo.Create(ctx, user); err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -188,10 +188,10 @@ func TestWaitingList_DeleteByIDs_MultipleEntries(t *testing.T) {
 	userRepo := NewUserRepository(db)
 	wlRepo := NewWaitingListRepository(db)
 	ctx := t.Context()
-	pid := defaultProjectID(t, db)
+	pid := defaultProjectSlug()
 
-	user1 := &model.UserEntity{ProjectID: pid, Firstname: "Del", Lastname: "Multi1", Email: "del-m1@example.com"}
-	user2 := &model.UserEntity{ProjectID: pid, Firstname: "Del", Lastname: "Multi2", Email: "del-m2@example.com"}
+	user1 := &model.UserEntity{ProjectSlug: pid, Firstname: "Del", Lastname: "Multi1", Email: "del-m1@example.com"}
+	user2 := &model.UserEntity{ProjectSlug: pid, Firstname: "Del", Lastname: "Multi2", Email: "del-m2@example.com"}
 	if err := userRepo.Create(ctx, user1); err != nil {
 		t.Fatalf("failed to create user1: %v", err)
 	}

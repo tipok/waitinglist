@@ -72,26 +72,8 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	waitListRepo := repository.NewWaitingListRepository(db)
 	schedulerRepo := repository.NewSchedulerRepository(db)
-	projectRepo := repository.NewProjectRepository(db)
 
-	// Load projects for tenant resolution cache.
-	projects, err := projectRepo.GetAll(ctx)
-	if err != nil {
-		logger.Error("Error loading projects", "error", err)
-		os.Exit(1)
-	}
-	// Validate that the configured default project exists.
-	defaultFound := false
-	for _, p := range projects {
-		if p.Slug == cfg.Projects.DefaultSlug {
-			defaultFound = true
-			break
-		}
-	}
-	if !defaultFound {
-		logger.Error("configured default project slug not found in database", "slug", cfg.Projects.DefaultSlug)
-		os.Exit(1)
-	}
+	projects := cfg.Projects.Projects()
 
 	resolver := handler.NewProjectResolver(
 		cfg.Projects.HeaderName,
@@ -103,7 +85,7 @@ func main() {
 
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
 	healthHandler := handler.NewHealthHandler(db, logger)
-	err = waitlist.Start(ctx, cfg, logger, projectRepo, waitListRepo, userRepo, schedulerRepo)
+	err = waitlist.Start(ctx, cfg, logger, projects, waitListRepo, userRepo, schedulerRepo)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
 		os.Exit(1)
@@ -125,7 +107,7 @@ func main() {
 	if adminUser == "" || len(adminHash) == 0 {
 		logger.Warn("admin basic auth not configured; /admin routes disabled")
 	} else {
-		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projectRepo, resolver, logger)
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projects, logger)
 		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
 
 		adminMux := http.NewServeMux()

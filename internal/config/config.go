@@ -10,6 +10,8 @@ import (
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/tipok/waitinglist/internal/model"
 )
 
 const (
@@ -34,9 +36,54 @@ type Config struct {
 
 // ProjectsConfig configures multi-tenancy project resolution.
 type ProjectsConfig struct {
-	HeaderName  string            `koanf:"headerName"`
-	DefaultSlug string            `koanf:"defaultSlug"`
-	HostMapping map[string]string `koanf:"hostMapping"`
+	HeaderName  string                       `koanf:"headerName"`
+	DefaultSlug string                       `koanf:"defaultSlug"`
+	HostMapping map[string]string            `koanf:"hostMapping"`
+	Definitions map[string]ProjectDefinition `koanf:"definitions"`
+}
+
+// ProjectDefinition holds per-project metadata and optional scheduler overrides.
+type ProjectDefinition struct {
+	Name                string `koanf:"name"`
+	EntryBatchSize      *int   `koanf:"entryBatchSize"`
+	EntryWindowInterval string `koanf:"entryWindowInterval"`
+	SchedulerDisabled   bool   `koanf:"schedulerDisabled"`
+}
+
+// Validate checks that all slug references in the config are defined in Definitions.
+func (p ProjectsConfig) Validate() error {
+	if len(p.Definitions) == 0 {
+		return fmt.Errorf("projects.definitions must not be empty")
+	}
+	if _, ok := p.Definitions[p.DefaultSlug]; !ok {
+		return fmt.Errorf("projects.defaultSlug %q not found in definitions", p.DefaultSlug)
+	}
+	for host, slug := range p.HostMapping {
+		if _, ok := p.Definitions[slug]; !ok {
+			return fmt.Errorf("projects.hostMapping[%q] references undefined slug %q", host, slug)
+		}
+	}
+	return nil
+}
+
+// Projects returns the definitions as a slice of model.Project.
+func (p ProjectsConfig) Projects() []model.Project {
+	projects := make([]model.Project, 0, len(p.Definitions))
+	for slug, def := range p.Definitions {
+		proj := model.Project{
+			Slug:              slug,
+			Name:              def.Name,
+			EntryBatchSize:    def.EntryBatchSize,
+			SchedulerDisabled: def.SchedulerDisabled,
+		}
+		if def.EntryWindowInterval != "" {
+			d, _ := time.ParseDuration(def.EntryWindowInterval)
+			dur := model.Duration(d)
+			proj.EntryWindowInterval = &dur
+		}
+		projects = append(projects, proj)
+	}
+	return projects
 }
 
 // AdminConfig configures the protected /admin/* routes. When BasicAuth is
@@ -154,6 +201,10 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Projects.DefaultSlug == "" {
 		cfg.Projects.DefaultSlug = DefaultProjectSlug
+	}
+
+	if err := cfg.Projects.Validate(); err != nil {
+		return nil, fmt.Errorf("validating projects config: %w", err)
 	}
 
 	return cfg, nil

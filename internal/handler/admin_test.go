@@ -63,56 +63,10 @@ func (f *fakeAdminWaitlistStore) BeginTx(ctx context.Context) (model.Tx, error) 
 	return f.beginTxFn(ctx)
 }
 
-type fakeAdminProjectStore struct {
-	getAllFn    func(ctx context.Context) ([]model.Project, error)
-	getBySlugFn func(ctx context.Context, slug string) (*model.Project, error)
-	getByIDFn   func(ctx context.Context, id string) (*model.Project, error)
-	createFn    func(ctx context.Context, p *model.Project) error
-	updateFn    func(ctx context.Context, p *model.Project) error
-}
-
-func (f *fakeAdminProjectStore) GetAll(ctx context.Context) ([]model.Project, error) {
-	if f.getAllFn != nil {
-		return f.getAllFn(ctx)
-	}
-	return []model.Project{}, nil
-}
-func (f *fakeAdminProjectStore) GetBySlug(ctx context.Context, slug string) (*model.Project, error) {
-	if f.getBySlugFn != nil {
-		return f.getBySlugFn(ctx, slug)
-	}
-	return nil, model.ErrProjectNotFound
-}
-func (f *fakeAdminProjectStore) GetByID(ctx context.Context, id string) (*model.Project, error) {
-	if f.getByIDFn != nil {
-		return f.getByIDFn(ctx, id)
-	}
-	return nil, model.ErrProjectNotFound
-}
-func (f *fakeAdminProjectStore) Create(ctx context.Context, p *model.Project) error {
-	if f.createFn != nil {
-		return f.createFn(ctx, p)
-	}
-	return nil
-}
-func (f *fakeAdminProjectStore) Update(ctx context.Context, p *model.Project) error {
-	if f.updateFn != nil {
-		return f.updateFn(ctx, p)
-	}
-	return nil
-}
-
-type fakeProjectCacheReloader struct {
-	reloadCalled bool
-}
-
-func (f *fakeProjectCacheReloader) Reload(_ []model.Project) {
-	f.reloadCalled = true
-}
-
 func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHandler, *http.ServeMux) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewAdminHandler(us, ws, &fakeAdminProjectStore{}, &fakeProjectCacheReloader{}, logger)
+	projects := []model.Project{{Slug: "default", Name: "Default"}}
+	h := NewAdminHandler(us, ws, projects, logger)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	return h, mux
@@ -517,27 +471,15 @@ func TestAdmin_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// newTestAdminHandlerWithProjects is like newTestAdminHandler but allows
-// injecting a custom project store and cache reloader for project-CRUD tests.
-func newTestAdminHandlerWithProjects(us AdminUserStore, ws AdminWaitingListStore, ps AdminProjectStore, cr *fakeProjectCacheReloader) (*AdminHandler, *http.ServeMux) {
+func TestAdmin_ListProjects_HappyPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := NewAdminHandler(us, ws, ps, cr, logger)
+	projects := []model.Project{
+		{Slug: "alpha", Name: "Alpha Project"},
+		{Slug: "beta", Name: "Beta Project"},
+	}
+	h := NewAdminHandler(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, logger)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	return h, mux
-}
-
-func TestAdmin_ListProjects_HappyPath(t *testing.T) {
-	ps := &fakeAdminProjectStore{
-		getAllFn: func(_ context.Context) ([]model.Project, error) {
-			return []model.Project{
-				{ID: "p1", Slug: "alpha", Name: "Alpha Project", CreatedAt: time.Now()},
-				{ID: "p2", Slug: "beta", Name: "Beta Project", CreatedAt: time.Now()},
-			}, nil
-		},
-	}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/projects", nil)
 	w := httptest.NewRecorder()
@@ -553,186 +495,5 @@ func TestAdmin_ListProjects_HappyPath(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(got))
-	}
-	if got[0].Slug != "alpha" || got[1].Slug != "beta" {
-		t.Errorf("unexpected slugs: %q, %q", got[0].Slug, got[1].Slug)
-	}
-}
-
-func TestAdmin_CreateProject_HappyPath(t *testing.T) {
-	var createdProject *model.Project
-	ps := &fakeAdminProjectStore{
-		createFn: func(_ context.Context, p *model.Project) error {
-			p.ID = "new-id"
-			createdProject = p
-			return nil
-		},
-		getAllFn: func(_ context.Context) ([]model.Project, error) {
-			return []model.Project{}, nil
-		},
-	}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"slug":"test-project","name":"Test Project"}`)
-	req := httptest.NewRequest(http.MethodPost, "/admin/projects", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
-	}
-	if createdProject == nil {
-		t.Fatal("expected createFn to be called")
-	}
-	if createdProject.Slug != "test-project" || createdProject.Name != "Test Project" {
-		t.Errorf("unexpected project: slug=%q name=%q", createdProject.Slug, createdProject.Name)
-	}
-	if !cr.reloadCalled {
-		t.Error("expected project cache reload after create")
-	}
-}
-
-func TestAdmin_CreateProject_InvalidSlug(t *testing.T) {
-	ps := &fakeAdminProjectStore{}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"slug":"INVALID","name":"Test"}`)
-	req := httptest.NewRequest(http.MethodPost, "/admin/projects", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "slug") {
-		t.Errorf("expected error about slug, got %s", w.Body.String())
-	}
-}
-
-func TestAdmin_CreateProject_MissingSlug(t *testing.T) {
-	ps := &fakeAdminProjectStore{}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"name":"Test"}`)
-	req := httptest.NewRequest(http.MethodPost, "/admin/projects", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "slug is required") {
-		t.Errorf("expected 'slug is required' error, got %s", w.Body.String())
-	}
-}
-
-func TestAdmin_CreateProject_DuplicateSlug(t *testing.T) {
-	ps := &fakeAdminProjectStore{
-		createFn: func(_ context.Context, _ *model.Project) error {
-			return model.ErrDuplicateProjectSlug
-		},
-	}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"slug":"existing","name":"Existing"}`)
-	req := httptest.NewRequest(http.MethodPost, "/admin/projects", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusConflict {
-		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "already exists") {
-		t.Errorf("expected 'already exists' error, got %s", w.Body.String())
-	}
-}
-
-func TestAdmin_CreateProject_InvalidBatchSize(t *testing.T) {
-	ps := &fakeAdminProjectStore{}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"slug":"x","name":"X","entry_batch_size":0}`)
-	req := httptest.NewRequest(http.MethodPost, "/admin/projects", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "entry_batch_size") {
-		t.Errorf("expected error about entry_batch_size, got %s", w.Body.String())
-	}
-}
-
-func TestAdmin_UpdateProject_NotFound(t *testing.T) {
-	ps := &fakeAdminProjectStore{
-		getByIDFn: func(_ context.Context, _ string) (*model.Project, error) {
-			return nil, model.ErrProjectNotFound
-		},
-	}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"name":"Updated"}`)
-	req := httptest.NewRequest(http.MethodPut, "/admin/projects/missing", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestAdmin_UpdateProject_HappyPath(t *testing.T) {
-	existingProject := &model.Project{
-		ID:   "p1",
-		Slug: "my-project",
-		Name: "Old Name",
-	}
-	var updatedProject *model.Project
-	ps := &fakeAdminProjectStore{
-		getByIDFn: func(_ context.Context, id string) (*model.Project, error) {
-			if id == "p1" {
-				// Return a copy to avoid aliasing issues.
-				cp := *existingProject
-				return &cp, nil
-			}
-			return nil, model.ErrProjectNotFound
-		},
-		updateFn: func(_ context.Context, p *model.Project) error {
-			updatedProject = p
-			return nil
-		},
-		getAllFn: func(_ context.Context) ([]model.Project, error) {
-			return []model.Project{}, nil
-		},
-	}
-	cr := &fakeProjectCacheReloader{}
-	_, mux := newTestAdminHandlerWithProjects(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, ps, cr)
-
-	body := strings.NewReader(`{"name":"New Name"}`)
-	req := httptest.NewRequest(http.MethodPut, "/admin/projects/p1", body)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if updatedProject == nil {
-		t.Fatal("expected updateFn to be called")
-	}
-	if updatedProject.Name != "New Name" {
-		t.Errorf("expected name 'New Name', got %q", updatedProject.Name)
-	}
-	if updatedProject.Slug != "my-project" {
-		t.Errorf("expected slug preserved as 'my-project', got %q", updatedProject.Slug)
-	}
-	if !cr.reloadCalled {
-		t.Error("expected project cache reload after update")
 	}
 }
