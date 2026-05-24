@@ -231,6 +231,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
   2. Each plan should include: **Overview**, **Requirements**, **Design**, **Implementation Steps**, **Testing**, and **Acceptance Criteria**.
   3. Every plan must include a **Testing** section that describes the unit tests to be written, covering core logic, edge cases, and error/negative scenarios.
   4. Plans should be kept up to date as implementation progresses — mark completed steps and note any deviations.
+- **When implementing a plan, you MUST update the plan file as you go.** After completing each implementation step or acceptance criterion, immediately mark it as done (✅) in the plan. Do not wait until the end — update the plan incrementally so it always reflects the current state of progress. This includes marking steps complete, noting deviations from the original design, and updating the plan's status in this table when the feature is fully done.
 - Cross-cutting concerns (e.g., database schema shared across features) get their own plan directory.
 - Reference related plans from within a plan when there are dependencies between features.
 
