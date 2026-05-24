@@ -231,15 +231,15 @@ For test #3 (timeout), override `healthCheckTimeout` via a small package-level v
 
 ## Acceptance Criteria
 
-- [ ] `GET /healthz` returns `200 OK` with `{"status":"ok","checks":{"database":"ok"}}` when the DB is reachable.
-- [ ] `GET /healthz` returns `503 Service Unavailable` with `{"status":"unhealthy","checks":{"database":"<err>"}}` when `db.PingContext` returns an error.
-- [ ] DB ping is bounded by a `2s` timeout — the handler responds within that window even if the DB hangs.
-- [ ] `/healthz` requests are **not** emitted by `LoggingMiddleware`; failures are still logged at `Warn` from the handler.
-- [ ] `POST /healthz` (or any non-GET method) returns `405 Method Not Allowed`.
-- [ ] `cmd/server/main.go` registers the health handler on the same mux as the waiting list handler.
-- [ ] All new and existing handler / middleware tests pass.
-- [ ] `make format`, `make lint`, and `make test` all pass.
-- [ ] `CLAUDE.md` plans table references plan `15`.
+- [x] `GET /healthz` returns `200 OK` with `{"status":"ok","checks":{"database":"ok"}}` when the DB is reachable.
+- [x] `GET /healthz` returns `503 Service Unavailable` with `{"status":"unhealthy","checks":{"database":"<err>"}}` when `db.PingContext` returns an error.
+- [x] DB ping is bounded by a `2s` timeout — the handler responds within that window even if the DB hangs.
+- [x] `/healthz` requests are **not** emitted by `LoggingMiddleware`; failures are still logged at `Warn` from the handler.
+- [x] `POST /healthz` (or any non-GET method) returns `405 Method Not Allowed`.
+- [x] `cmd/server/main.go` registers the health handler on the same mux as the waiting list handler.
+- [x] All new and existing handler / middleware tests pass.
+- [x] `make format`, `make lint`, and `make test` all pass.
+- [x] `CLAUDE.md` plans table references plan `15`.
 
 ---
 

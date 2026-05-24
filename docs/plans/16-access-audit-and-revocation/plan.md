@@ -305,14 +305,14 @@ Adding optional, `omitzero` fields to `UserInfo` does not break existing clients
 
 ## Acceptance Criteria
 
-- [ ] Migration `007_access_audit_and_drop_one_way.sql` adds the five audit columns, backfills existing granted users, drops the one-way trigger and function, and creates the `created_at` index. Idempotent on re-run.
-- [ ] `UserEntity` and `UserInfo` expose the audit fields via JSON with `omitzero` semantics.
-- [ ] `UserRepository.GrantAccessTx` and `RevokeAccessTx` exist, are covered by tests, and enforce the `source` whitelist and non-empty `reason`.
-- [ ] `SetHasAccessTx` is a deprecated wrapper calling `GrantAccessTx(..., "scheduler")`.
-- [ ] The waitlist scheduler grants via `GrantAccessTx(..., "scheduler")` (verified by an integration test).
-- [ ] `GET /waitinglist/users` includes `access_revoke_reason` (and the other audit timestamps) when applicable.
-- [ ] `make format`, `make lint`, and `make test` all pass.
-- [ ] CLAUDE.md plans table references plan `16`.
+- [x] Migration `007_access_audit_and_drop_one_way.sql` adds the five audit columns, backfills existing granted users, drops the one-way trigger and function, and creates the `created_at` index. Idempotent on re-run.
+- [x] `UserEntity` and `UserInfo` expose the audit fields via JSON with `omitzero` semantics.
+- [x] `UserRepository.GrantAccessTx` and `RevokeAccessTx` exist, are covered by tests, and enforce the `source` whitelist and non-empty `reason`.
+- [x] `SetHasAccessTx` is a deprecated wrapper calling `GrantAccessTx(..., "scheduler")`.
+- [x] The waitlist scheduler grants via `GrantAccessTx(..., "scheduler")` (verified by an integration test).
+- [x] `GET /waitinglist/users` includes `access_revoke_reason` (and the other audit timestamps) when applicable.
+- [x] `make format`, `make lint`, and `make test` all pass.
+- [x] CLAUDE.md plans table references plan `16`.
 
 ---
 

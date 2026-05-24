@@ -132,32 +132,32 @@ Request: `GET /waitinglist/users?email=bob@example.com&email=alice@example.com`
 
 ### Step 1 — Database Migration
 
-- [ ] Create `migrations/005_user_row_hash.sql` with the `pgcrypto` extension and `ALTER TABLE` adding the `row_hash` generated column.
-- [ ] Verify the migration is idempotent (`IF NOT EXISTS`).
+- [x] Create `migrations/005_user_row_hash.sql` with the `pgcrypto` extension and `ALTER TABLE` adding the `row_hash` generated column.
+- [x] Verify the migration is idempotent (`IF NOT EXISTS`).
 
 ### Step 2 — Model Update
 
-- [ ] Add `RowHash string \`json:"-"\`` to `model.UserInfo`.
+- [x] Add `RowHash string \`json:"-"\`` to `model.UserInfo`.
 
 ### Step 3 — Repository Update
 
-- [ ] Update `GetUserInfoByEmails` SQL query to select `row_hash`.
-- [ ] Update the `Scan` call to include `RowHash`.
-- [ ] Update the `WaitingListUserStore` interface if the method signature changes (it should not — only the returned data changes).
+- [x] Update `GetUserInfoByEmails` SQL query to select `row_hash`.
+- [x] Update the `Scan` call to include `RowHash`.
+- [x] Update the `WaitingListUserStore` interface if the method signature changes (it should not — only the returned data changes).
 
 ### Step 4 — Handler ETag Logic
 
-- [ ] Sort incoming emails before querying.
-- [ ] Sort returned users by email after querying.
-- [ ] Compute composite SHA-256 ETag from concatenated `row_hash` values.
-- [ ] Check `If-None-Match` header; return `304` on match.
-- [ ] Set `ETag` header on `200` responses.
+- [x] Sort incoming emails before querying.
+- [x] Sort returned users by email after querying.
+- [x] Compute composite SHA-256 ETag from concatenated `row_hash` values.
+- [x] Check `If-None-Match` header; return `304` on match.
+- [x] Set `ETag` header on `200` responses.
 
 ### Step 5 — Formatting, Linting, Testing
 
-- [ ] `make format`
-- [ ] `make lint`
-- [ ] `make test`
+- [x] `make format`
+- [x] `make lint`
+- [x] `make test`
 
 ---
 
@@ -192,11 +192,11 @@ Request: `GET /waitinglist/users?email=bob@example.com&email=alice@example.com`
 
 ## Acceptance Criteria
 
-- [ ] `user_entity` table has a `row_hash` generated column using SHA-256 of `email || ':' || has_access::text`.
-- [ ] `GET /waitinglist/users` returns an `ETag` header on every `200` response.
-- [ ] Sending `If-None-Match` with a matching ETag returns `304 Not Modified` with no body.
-- [ ] The ETag is order-independent: requesting the same set of emails in any order produces the same ETag.
-- [ ] `RowHash` is excluded from the JSON response (`json:"-"`).
-- [ ] All existing tests continue to pass.
-- [ ] New unit tests cover ETag generation, `304` responses, order independence, and edge cases.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `user_entity` table has a `row_hash` generated column using SHA-256 of `email || ':' || has_access::text`.
+- [x] `GET /waitinglist/users` returns an `ETag` header on every `200` response.
+- [x] Sending `If-None-Match` with a matching ETag returns `304 Not Modified` with no body.
+- [x] The ETag is order-independent: requesting the same set of emails in any order produces the same ETag.
+- [x] `RowHash` is excluded from the JSON response (`json:"-"`).
+- [x] All existing tests continue to pass.
+- [x] New unit tests cover ETag generation, `304` responses, order independence, and edge cases.
+- [x] `make format`, `make lint`, and `make test` all pass.

@@ -1,6 +1,6 @@
 # 24 — Config-Only Projects (Eliminate `project` Table)
 
-> **Status:** 📋 Planned
+> **Status:** ✅ Complete
 
 ## Overview
 
@@ -193,62 +193,62 @@ type UserEntity struct {
 
 ### Phase 1: Config and Model (no DB change yet)
 
-- [ ] Add `ProjectDefinition` struct to `config.go`.
-- [ ] Add `Definitions map[string]ProjectDefinition` to `ProjectsConfig`.
-- [ ] Add startup validation function: check `defaultSlug` ∈ `definitions`, all `hostMapping` values ∈ `definitions`.
-- [ ] Update `model.Project`: remove `ID`, `CreatedAt`; keep `Slug`, `Name`, scheduler fields.
-- [ ] Update `model.UserEntity`: `ProjectID` → `ProjectSlug`.
-- [ ] Update `model.WaitingListEntry`: `ProjectID` → `ProjectSlug`.
-- [ ] Update `model.WaitingListAdminRow`: `ProjectID` → `ProjectSlug`.
-- [ ] Verify: `make format && make lint` (tests will break — expected).
+- [x] Add `ProjectDefinition` struct to `config.go`.
+- [x] Add `Definitions map[string]ProjectDefinition` to `ProjectsConfig`.
+- [x] Add startup validation function: check `defaultSlug` ∈ `definitions`, all `hostMapping` values ∈ `definitions`.
+- [x] Update `model.Project`: remove `ID`, `CreatedAt`; keep `Slug`, `Name`, scheduler fields.
+- [x] Update `model.UserEntity`: `ProjectID` → `ProjectSlug`.
+- [x] Update `model.WaitingListEntry`: `ProjectID` → `ProjectSlug`.
+- [x] Update `model.WaitingListAdminRow`: `ProjectID` → `ProjectSlug`.
+- [x] Verify: `make format && make lint` (tests will break — expected).
 
 ### Phase 2: Migration
 
-- [ ] Write `migrations/009_drop_project_table.sql` as designed above.
-- [ ] Verify: migration is idempotent (can be re-run on a fresh DB after 008).
+- [x] Write `migrations/009_drop_project_table.sql` as designed above.
+- [x] Verify: migration is idempotent (can be re-run on a fresh DB after 008).
 
 ### Phase 3: Repository Layer
 
-- [ ] Delete `internal/repository/project.go` and its test file.
-- [ ] Update `internal/repository/user.go`: all queries use `project_slug` TEXT column.
-- [ ] Update `internal/repository/waitinglist.go`: all queries use `project_slug` TEXT column.
-- [ ] Update `internal/repository/scheduler.go`: all queries use `project_slug` TEXT column.
-- [ ] Verify: `make format && make lint`.
+- [x] Delete `internal/repository/project.go` and its test file.
+- [x] Update `internal/repository/user.go`: all queries use `project_slug` TEXT column.
+- [x] Update `internal/repository/waitinglist.go`: all queries use `project_slug` TEXT column.
+- [x] Update `internal/repository/scheduler.go`: all queries use `project_slug` TEXT column.
+- [x] Verify: `make format && make lint`.
 
 ### Phase 4: Handler and Resolver
 
-- [ ] Update `internal/handler/tenant.go`: build from `[]model.Project` derived from config (remove `projectRepo` dependency).
-- [ ] Update `internal/handler/waitinglist.go`: pass `project.Slug` instead of `project.ID` to repo methods.
-- [ ] Update `internal/handler/admin.go`: remove `Reload()` calls; project filter uses slug directly.
-- [ ] Update `internal/waitlist/waitlist.go`: scheduler iterates config projects, uses slug, reads per-project overrides.
-- [ ] Verify: `make format && make lint`.
+- [x] Update `internal/handler/tenant.go`: build from `[]model.Project` derived from config (remove `projectRepo` dependency).
+- [x] Update `internal/handler/waitinglist.go`: pass `project.Slug` instead of `project.ID` to repo methods.
+- [x] Update `internal/handler/admin.go`: remove `Reload()` calls; project filter uses slug directly.
+- [x] Update `internal/waitlist/waitlist.go`: scheduler iterates config projects, uses slug, reads per-project overrides.
+- [x] Verify: `make format && make lint`.
 
 ### Phase 5: Wiring (main.go)
 
-- [ ] Remove `ProjectRepository` instantiation and `GetAll()` call.
-- [ ] Build `[]model.Project` from `cfg.Projects.Definitions`.
-- [ ] Pass to `NewProjectResolver`.
-- [ ] Pass per-project config to scheduler.
-- [ ] Remove startup validation that checked DB projects against `defaultSlug`.
-- [ ] Add new startup validation from config (Phase 1 function).
-- [ ] Verify: `make format && make lint`.
+- [x] Remove `ProjectRepository` instantiation and `GetAll()` call.
+- [x] Build `[]model.Project` from `cfg.Projects.Definitions`.
+- [x] Pass to `NewProjectResolver`.
+- [x] Pass per-project config to scheduler.
+- [x] Remove startup validation that checked DB projects against `defaultSlug`.
+- [x] Add new startup validation from config (Phase 1 function).
+- [x] Verify: `make format && make lint`.
 
 ### Phase 6: Tests
 
-- [ ] Update/delete `internal/repository/project_test.go`.
-- [ ] Update `internal/repository/user_test.go`: use `project_slug` in test setup.
-- [ ] Update `internal/repository/waitinglist_test.go`: use `project_slug` in test setup.
-- [ ] Update `internal/repository/scheduler_test.go`: use `project_slug` in test setup.
-- [ ] Update `internal/handler/*_test.go`: adapt fakes/mocks to new signatures.
-- [ ] Update `internal/waitlist/waitlist_test.go` if applicable.
-- [ ] Add config validation tests.
-- [ ] Verify: `make format && make lint && make test`.
+- [x] Update/delete `internal/repository/project_test.go`.
+- [x] Update `internal/repository/user_test.go`: use `project_slug` in test setup.
+- [x] Update `internal/repository/waitinglist_test.go`: use `project_slug` in test setup.
+- [x] Update `internal/repository/scheduler_test.go`: use `project_slug` in test setup.
+- [x] Update `internal/handler/*_test.go`: adapt fakes/mocks to new signatures.
+- [x] Update `internal/waitlist/waitlist_test.go` if applicable.
+- [x] Add config validation tests.
+- [x] Verify: `make format && make lint && make test`.
 
 ### Phase 7: Documentation
 
-- [ ] Update `README.md`: document `projects.definitions` field, update config example.
-- [ ] Update `CLAUDE.md`: reflect new project structure (no `ProjectRepository`, slug-based).
-- [ ] Mark plan 23 as superseded.
+- [x] Update `README.md`: document `projects.definitions` field, update config example.
+- [x] Update `CLAUDE.md`: reflect new project structure (no `ProjectRepository`, slug-based).
+- [x] Mark plan 23 as superseded.
 
 ---
 
@@ -281,9 +281,9 @@ type UserEntity struct {
 
 ## Acceptance Criteria
 
-- [ ] No `project` table exists after migration 009.
-- [ ] Adding a new project requires only a config change + restart.
-- [ ] Existing data is preserved (migrated from UUID to slug).
-- [ ] Per-project scheduler overrides work from config.
-- [ ] Unknown slugs are rejected at request time with 400.
-- [ ] `make format && make lint && make test` all pass.
+- [x] No `project` table exists after migration 009.
+- [x] Adding a new project requires only a config change + restart.
+- [x] Existing data is preserved (migrated from UUID to slug).
+- [x] Per-project scheduler overrides work from config.
+- [x] Unknown slugs are rejected at request time with 400.
+- [x] `make format && make lint && make test` all pass.

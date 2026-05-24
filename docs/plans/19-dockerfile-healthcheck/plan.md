@@ -138,9 +138,9 @@ All three use `httptest.NewServer` (or simply close the server before calling) t
 
 ## Acceptance Criteria
 
-- [ ] `config.ParseFlags` returns a `Flags` struct; all existing call sites updated.
-- [ ] `--health-check` flag is parsed and respected in `main.go`.
-- [ ] `probeHealth` is unit-tested for success, unhealthy, and unreachable cases.
-- [ ] `Dockerfile` contains a `HEALTHCHECK` instruction using the binary itself.
-- [ ] `make format`, `make lint`, and `make test` all pass.
-- [ ] `docker inspect <image>` shows a configured `Healthcheck` with the correct `CMD`.
+- [x] `config.ParseFlags` returns a `Flags` struct; all existing call sites updated.
+- [x] `--health-check` flag is parsed and respected in `main.go`.
+- [x] `probeHealth` is unit-tested for success, unhealthy, and unreachable cases.
+- [x] `Dockerfile` contains a `HEALTHCHECK` instruction using the binary itself.
+- [x] `make format`, `make lint`, and `make test` all pass.
+- [x] `docker inspect <image>` shows a configured `Healthcheck` with the correct `CMD`.

@@ -173,12 +173,12 @@ is purely additive).
 
 ## Acceptance Criteria
 
-- [ ] `--health-check` mode no longer calls `config.Load` and no longer
+- [x] `--health-check` mode no longer calls `config.Load` and no longer
       requires `/config.json` (or any config file) to exist.
-- [ ] Port resolution precedence is `--port` → `WL_PORT` → `DefaultPort`,
+- [x] Port resolution precedence is `--port` → `WL_PORT` → `DefaultPort`,
       with unit tests covering each branch.
-- [ ] Dockerfile HEALTHCHECK CMD is `["/waitinglist", "--health-check"]`
+- [x] Dockerfile HEALTHCHECK CMD is `["/waitinglist", "--health-check"]`
       (no `--config` argument).
-- [ ] Running the container without a mounted config (env-only configuration)
+- [x] Running the container without a mounted config (env-only configuration)
       reports `healthy` once the server is up.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `make format`, `make lint`, and `make test` all pass.

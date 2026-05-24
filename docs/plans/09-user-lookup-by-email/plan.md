@@ -154,7 +154,7 @@ type WaitingListUserStore interface {
 - [x] Add `UserInfo` and `UserInfoList` structs to `internal/model/model.go`
 - [x] Update existing repository queries that SELECT/INSERT on `user_entity` to include `created_at`
 - [x] Implement `GetUserInfoByEmails` in `internal/repository/user.go`
-- [ ] Add unit tests for `GetUserInfoByEmails` in `internal/repository/user_test.go` (gated by `TEST_DATABASE_URL`)
+- [x] Add unit tests for `GetUserInfoByEmails` in `internal/repository/user_test.go` (gated by `TEST_DATABASE_URL`)
 - [x] Update `WaitingListUserStore` interface in `internal/handler/waitinglist.go`
 - [x] Implement `handleGetUsersByEmail` handler in `internal/handler/waitinglist.go`
 - [x] Register the `GET /waitinglist/users` route in `RegisterRoutes`

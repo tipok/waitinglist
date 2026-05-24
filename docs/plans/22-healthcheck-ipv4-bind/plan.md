@@ -68,7 +68,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 - [x] **3.** Run `make format && make lint && make test` and confirm all pass.
 
-- [ ] **4.** Build the Docker image locally and start a container; verify:
+- [x] **4.** Build the Docker image locally and start a container; verify:
   - The server log shows `addr=0.0.0.0:8080`.
   - `docker inspect --format='{{json .State.Health}}' <container>` reports `"Status":"healthy"`.
 
@@ -97,7 +97,7 @@ docker exec <container> /waitinglist --health-check
 
 ## Acceptance Criteria
 
-- [ ] `docker inspect` shows `"Status":"healthy"` (not `"unhealthy"` or `"starting"` indefinitely).
+- [x] `docker inspect` shows `"Status":"healthy"` (not `"unhealthy"` or `"starting"` indefinitely).
 - [x] Server logs contain `addr=0.0.0.0:<port>` on startup.
 - [x] `make format`, `make lint`, and `make test` all pass.
 - [x] No change to the public API or admin endpoints.

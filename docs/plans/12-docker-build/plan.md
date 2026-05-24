@@ -105,11 +105,11 @@ Since this plan involves only build infrastructure (Dockerfile + Makefile target
 
 ## Acceptance Criteria
 
-- [ ] Multi-stage `Dockerfile` builds a static Go binary and copies it into `gcr.io/distroless/base-debian13:nonroot`.
-- [ ] `.dockerignore` excludes unnecessary files from the build context.
-- [ ] `make docker-build-amd64` builds a `linux/amd64` image.
-- [ ] `make docker-build-arm64` builds a `linux/arm64` image.
-- [ ] `make docker-build` builds both architecture images.
-- [ ] All image build commands use `container` when available, falling back to `docker`.
-- [ ] Final image runs as non-root user.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] Multi-stage `Dockerfile` builds a static Go binary and copies it into `gcr.io/distroless/base-debian13:nonroot`.
+- [x] `.dockerignore` excludes unnecessary files from the build context.
+- [x] `make docker-build-amd64` builds a `linux/amd64` image.
+- [x] `make docker-build-arm64` builds a `linux/arm64` image.
+- [x] `make docker-build` builds both architecture images.
+- [x] All image build commands use `container` when available, falling back to `docker`.
+- [x] Final image runs as non-root user.
+- [x] `make format`, `make lint`, and `make test` all pass.

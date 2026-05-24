@@ -238,17 +238,17 @@ A Playwright smoke test could automate items #8–#18. Not required for this pla
 
 ## Acceptance Criteria
 
-- [ ] `GET /admin/` (and `/admin/static/*`) is served from `embed.FS` behind Basic Auth.
-- [ ] Dashboard shows three counters and an SVG bar chart with a configurable window.
-- [ ] Users-with-access list is searchable by email substring and supports paginated browsing.
-- [ ] Revoke action opens a modal, requires a non-empty reason, calls `POST /admin/users/{id}/revoke-access`, and removes the row on success.
-- [ ] Waiting-list view shows `weight` and timestamps and supports paginated browsing.
-- [ ] "Grant access now" calls `POST /admin/users/{id}/grant-access` and removes the row on success.
-- [ ] "Remove from waiting list" calls `DELETE /admin/waitlist/{entry_id}`.
-- [ ] No external network requests are made by the page (no CDN fonts, no CDN JS).
-- [ ] `GET /admin/dashboard` (API) is not shadowed by the file-server fallback.
-- [ ] CLAUDE.md HTTP Endpoints table mentions `/admin/` (UI) alongside the API routes.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `GET /admin/` (and `/admin/static/*`) is served from `embed.FS` behind Basic Auth.
+- [x] Dashboard shows three counters and an SVG bar chart with a configurable window.
+- [x] Users-with-access list is searchable by email substring and supports paginated browsing.
+- [x] Revoke action opens a modal, requires a non-empty reason, calls `POST /admin/users/{id}/revoke-access`, and removes the row on success.
+- [x] Waiting-list view shows `weight` and timestamps and supports paginated browsing.
+- [x] "Grant access now" calls `POST /admin/users/{id}/grant-access` and removes the row on success.
+- [x] "Remove from waiting list" calls `DELETE /admin/waitlist/{entry_id}`.
+- [x] No external network requests are made by the page (no CDN fonts, no CDN JS).
+- [x] `GET /admin/dashboard` (API) is not shadowed by the file-server fallback.
+- [x] CLAUDE.md HTTP Endpoints table mentions `/admin/` (UI) alongside the API routes.
+- [x] `make format`, `make lint`, and `make test` all pass.
 
 ---
 

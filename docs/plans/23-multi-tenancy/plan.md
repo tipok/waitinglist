@@ -1,6 +1,6 @@
 # 23 — Multi-Tenancy (Project-Scoped API)
 
-> **Status:** 📋 Planned
+> **Status:** ✅ Complete
 
 ## Overview
 
@@ -372,20 +372,20 @@ curl -H "X-Project-ID: acme" \
 
 ## Acceptance Criteria
 
-- [ ] Migration `008_multi_tenancy.sql` creates `project` table, backfills default project, adds `project_id` columns with FK constraints and indexes.
-- [ ] Existing data is assigned to the `default` project without downtime (idempotent migration).
-- [ ] Requests with `X-Project-ID` header are resolved to the correct project.
-- [ ] Requests with a mapped Host are resolved to the correct project.
-- [ ] Header takes precedence over Host mapping when both are present.
-- [ ] Requests without identification resolve to `defaultSlug` when configured; return 400 otherwise.
-- [ ] Same email can be registered in different projects independently.
-- [ ] `POST /waitinglist` creates user and entry scoped to the resolved project.
-- [ ] `GET /waitinglist/users?email=` returns only users from the resolved project.
-- [ ] Scheduler processes each project independently with per-project config.
-- [ ] Admin endpoints support `?project=<slug>` filter; omitting it returns cross-project data.
-- [ ] Admin project CRUD endpoints work (`GET/POST /admin/projects`, `PUT /admin/projects/{id}`).
-- [ ] Admin UI shows project column and filter dropdown.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] Migration `008_multi_tenancy.sql` creates `project` table, backfills default project, adds `project_id` columns with FK constraints and indexes.
+- [x] Existing data is assigned to the `default` project without downtime (idempotent migration).
+- [x] Requests with `X-Project-ID` header are resolved to the correct project.
+- [x] Requests with a mapped Host are resolved to the correct project.
+- [x] Header takes precedence over Host mapping when both are present.
+- [x] Requests without identification resolve to `defaultSlug` when configured; return 400 otherwise.
+- [x] Same email can be registered in different projects independently.
+- [x] `POST /waitinglist` creates user and entry scoped to the resolved project.
+- [x] `GET /waitinglist/users?email=` returns only users from the resolved project.
+- [x] Scheduler processes each project independently with per-project config.
+- [x] Admin endpoints support `?project=<slug>` filter; omitting it returns cross-project data.
+- [x] Admin project CRUD endpoints work (`GET/POST /admin/projects`, `PUT /admin/projects/{id}`).
+- [x] Admin UI shows project column and filter dropdown.
+- [x] `make format`, `make lint`, and `make test` all pass.
 
 ---
 

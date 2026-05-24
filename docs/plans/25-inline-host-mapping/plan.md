@@ -203,11 +203,11 @@ func (p ProjectsConfig) Validate() error {
 
 ## Acceptance Criteria
 
-- [ ] `ProjectsConfig` no longer has a `HostMapping` field.
-- [ ] `ProjectDefinition` has a `HostMapping string` field.
-- [ ] `BuildHostMapping()` correctly derives `map[string]string` from definitions.
-- [ ] `Validate()` rejects duplicate host mappings across definitions.
-- [ ] `conf/dev.json` uses the new config shape.
-- [ ] `cmd/server/main.go` uses `BuildHostMapping()`.
-- [ ] `make format`, `make lint`, `make test` all pass.
-- [ ] `CLAUDE.md` configuration table is updated.
+- [x] `ProjectsConfig` no longer has a `HostMapping` field.
+- [x] `ProjectDefinition` has a `HostMapping string` field.
+- [x] `BuildHostMapping()` correctly derives `map[string]string` from definitions.
+- [x] `Validate()` rejects duplicate host mappings across definitions.
+- [x] `conf/dev.json` uses the new config shape.
+- [x] `cmd/server/main.go` uses `BuildHostMapping()`.
+- [x] `make format`, `make lint`, `make test` all pass.
+- [x] `CLAUDE.md` configuration table is updated.

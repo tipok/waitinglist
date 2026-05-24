@@ -157,12 +157,12 @@ This plan adds CI infrastructure rather than application code, so there are no G
 
 ## Acceptance Criteria
 
-- [ ] `.github/workflows/docker.yml` exists with the two parallel jobs described above.
-- [ ] Workflow triggers on push to `main`, semver tags `v*.*.*`, and pull requests to `main`.
-- [ ] On pull requests, both jobs build but neither logs in to GHCR nor pushes.
-- [ ] On push to `main`, both jobs publish architecture-suffixed tags to `ghcr.io/<owner>/<repo>`.
-- [ ] On semver tag push, semver-derived tags (with `-amd64` / `-arm64` suffix) are published.
-- [ ] All third-party actions are pinned to the commit SHAs from the reference workflow.
-- [ ] GHA build cache is scoped per architecture and observed to hit on re-runs.
-- [ ] `CLAUDE.md` *Current Plans* table includes a row for this plan.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `.github/workflows/docker.yml` exists with the two parallel jobs described above.
+- [x] Workflow triggers on push to `main`, semver tags `v*.*.*`, and pull requests to `main`.
+- [x] On pull requests, both jobs build but neither logs in to GHCR nor pushes.
+- [x] On push to `main`, both jobs publish architecture-suffixed tags to `ghcr.io/<owner>/<repo>`.
+- [x] On semver tag push, semver-derived tags (with `-amd64` / `-arm64` suffix) are published.
+- [x] All third-party actions are pinned to the commit SHAs from the reference workflow.
+- [x] GHA build cache is scoped per architecture and observed to hit on re-runs.
+- [x] `CLAUDE.md` *Current Plans* table includes a row for this plan.
+- [x] `make format`, `make lint`, and `make test` all pass.

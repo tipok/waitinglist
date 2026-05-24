@@ -193,16 +193,16 @@ Content-Type: `application/json`. The `WriteJSON` helper already sets this heade
 
 ## Acceptance Criteria
 
-- [ ] `POST /waitinglist` with an email matching an existing user where `has_access = true` returns `HTTP 205 Reset Content` with body `{"message": "user already has access"}`.
-- [ ] No `waiting_list` row is inserted in the 205 case.
-- [ ] The transaction opened in `handleAdd` is rolled back (not committed) in the 205 case.
-- [ ] Existing 201 (new user) and 409 (already on list, no access) responses are unchanged.
-- [ ] Migration `006_has_access_one_way.sql` installs a trigger that rejects any `UPDATE` flipping `has_access` from `true` to `false`.
-- [ ] Migration is idempotent (re-running the migration suite does not error).
-- [ ] All new and existing handler tests pass.
-- [ ] Integration tests for the trigger pass when `TEST_DATABASE_URL` is set, and skip cleanly when it is not.
-- [ ] `make format`, `make lint`, and `make test` all pass.
-- [ ] `CLAUDE.md` plans table updated to reference plan `14`.
+- [x] `POST /waitinglist` with an email matching an existing user where `has_access = true` returns `HTTP 205 Reset Content` with body `{"message": "user already has access"}`.
+- [x] No `waiting_list` row is inserted in the 205 case.
+- [x] The transaction opened in `handleAdd` is rolled back (not committed) in the 205 case.
+- [x] Existing 201 (new user) and 409 (already on list, no access) responses are unchanged.
+- [x] Migration `006_has_access_one_way.sql` installs a trigger that rejects any `UPDATE` flipping `has_access` from `true` to `false`.
+- [x] Migration is idempotent (re-running the migration suite does not error).
+- [x] All new and existing handler tests pass.
+- [x] Integration tests for the trigger pass when `TEST_DATABASE_URL` is set, and skip cleanly when it is not.
+- [x] `make format`, `make lint`, and `make test` all pass.
+- [x] `CLAUDE.md` plans table updated to reference plan `14`.
 
 ---
 

@@ -182,11 +182,11 @@ The `WaitingListStore` interface is **not** modified.
 
 ## Acceptance Criteria
 
-- [ ] `user_entity` table has a nullable `ip_address INET` column.
-- [ ] Creating a user via `POST /waitinglist` captures the client IP on the `UserEntity`.
-- [ ] `X-Forwarded-For` (first entry) is preferred, then `X-Real-Ip`, then `RemoteAddr`.
-- [ ] Existing users (looked up by email) are not modified — their stored IP (or NULL) is preserved.
-- [ ] The `ip_address` field appears in JSON responses containing `UserEntity` when non-nil.
-- [ ] All IP extraction tests pass (9 cases).
-- [ ] All handler and repository tests pass.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `user_entity` table has a nullable `ip_address INET` column.
+- [x] Creating a user via `POST /waitinglist` captures the client IP on the `UserEntity`.
+- [x] `X-Forwarded-For` (first entry) is preferred, then `X-Real-Ip`, then `RemoteAddr`.
+- [x] Existing users (looked up by email) are not modified — their stored IP (or NULL) is preserved.
+- [x] The `ip_address` field appears in JSON responses containing `UserEntity` when non-nil.
+- [x] All IP extraction tests pass (9 cases).
+- [x] All handler and repository tests pass.
+- [x] `make format`, `make lint`, and `make test` all pass.

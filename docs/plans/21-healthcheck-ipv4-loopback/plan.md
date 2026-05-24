@@ -128,10 +128,10 @@ in the production fix and would couple the suite to host network details.
 
 ## Acceptance Criteria
 
-- [ ] `probeHealth` issues its GET against `http://127.0.0.1:<port>/healthz`.
-- [ ] All existing `probeHealth` tests pass without modification.
-- [ ] Server bind logic and Dockerfile HEALTHCHECK CMD are unchanged.
-- [ ] `make format`, `make lint`, and `make test` all pass.
-- [ ] In a deployment that previously logged `dial tcp [::1]:8080: connect:
+- [x] `probeHealth` issues its GET against `http://127.0.0.1:<port>/healthz`.
+- [x] All existing `probeHealth` tests pass without modification.
+- [x] Server bind logic and Dockerfile HEALTHCHECK CMD are unchanged.
+- [x] `make format`, `make lint`, and `make test` all pass.
+- [x] In a deployment that previously logged `dial tcp [::1]:8080: connect:
       connection refused`, the container reports `healthy` after
       `--start-period` elapses.

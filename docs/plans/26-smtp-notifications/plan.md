@@ -204,14 +204,14 @@ The scheduler and admin handler receive a `Notifier` interface. When nil (SMTP n
 
 ## Acceptance Criteria
 
-- [ ] `SMTPConfig` struct added with `host`, `port`, `username`, `password`, `tls`.
-- [ ] `ProjectDefinition` has `emailFrom` and `emailSubject` fields.
-- [ ] HTML template embedded in the binary via `//go:embed`.
-- [ ] `SMTPNotifier.NotifyAccessGranted` sends HTML email with user name and project name.
-- [ ] Scheduler calls notifier after granting access (best-effort).
-- [ ] Admin handler calls notifier after granting access (best-effort).
-- [ ] No email sent when SMTP not configured or project lacks `emailFrom`/`emailSubject`.
-- [ ] Errors are logged at `Warn` level, never propagated to the caller.
-- [ ] `conf/dev.json` includes SMTP config for local development.
-- [ ] `CLAUDE.md` and `README.md` document new config fields.
-- [ ] `make format`, `make lint`, `make test` all pass.
+- [x] `SMTPConfig` struct added with `host`, `port`, `username`, `password`, `tls`.
+- [x] `ProjectDefinition` has `emailFrom` and `emailSubject` fields.
+- [x] HTML template embedded in the binary via `//go:embed`.
+- [x] `SMTPNotifier.NotifyAccessGranted` sends HTML email with user name and project name.
+- [x] Scheduler calls notifier after granting access (best-effort).
+- [x] Admin handler calls notifier after granting access (best-effort).
+- [x] No email sent when SMTP not configured or project lacks `emailFrom`/`emailSubject`.
+- [x] Errors are logged at `Warn` level, never propagated to the caller.
+- [x] `conf/dev.json` includes SMTP config for local development.
+- [x] `CLAUDE.md` and `README.md` document new config fields.
+- [x] `make format`, `make lint`, `make test` all pass.

@@ -347,14 +347,14 @@ curl -u admin:changeme -X POST -d '{"reason":"abuse"}' \
 
 ## Acceptance Criteria
 
-- [ ] `config.json` accepts `admin.basic_auth.{username, password_hash}`. Empty values disable `/admin/*` (with a startup warning) instead of crashing.
-- [ ] `BasicAuthMiddleware` rejects missing/bad credentials with `401` and `WWW-Authenticate`.
-- [ ] All six admin routes are reachable behind auth and return JSON per the spec.
-- [ ] `grant-access` runs `DeleteByUserIDTx` and `GrantAccessTx` inside a single transaction; rolling back leaves both untouched.
-- [ ] `revoke-access` requires a non-empty reason ≤ 500 chars and stores it via `RevokeAccessTx`.
-- [ ] Dashboard `enlistments_by_day` zero-fills days with no signups within the requested window.
-- [ ] CLAUDE.md HTTP Endpoints table lists the new routes and their auth requirement.
-- [ ] `make format`, `make lint`, and `make test` all pass.
+- [x] `config.json` accepts `admin.basic_auth.{username, password_hash}`. Empty values disable `/admin/*` (with a startup warning) instead of crashing.
+- [x] `BasicAuthMiddleware` rejects missing/bad credentials with `401` and `WWW-Authenticate`.
+- [x] All six admin routes are reachable behind auth and return JSON per the spec.
+- [x] `grant-access` runs `DeleteByUserIDTx` and `GrantAccessTx` inside a single transaction; rolling back leaves both untouched.
+- [x] `revoke-access` requires a non-empty reason ≤ 500 chars and stores it via `RevokeAccessTx`.
+- [x] Dashboard `enlistments_by_day` zero-fills days with no signups within the requested window.
+- [x] CLAUDE.md HTTP Endpoints table lists the new routes and their auth requirement.
+- [x] `make format`, `make lint`, and `make test` all pass.
 
 ---
 
