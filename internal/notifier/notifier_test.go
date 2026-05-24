@@ -32,6 +32,7 @@ func TestRenderTemplate_ValidData(t *testing.T) {
 	}
 
 	var buf strings.Builder
+	//goland:noinspection ALL
 	err := n.tmpl.Execute(&buf, data)
 	if err != nil {
 		t.Fatalf("unexpected template error: %v", err)
@@ -56,6 +57,7 @@ func TestRenderTemplate_EmptyFields(t *testing.T) {
 	}
 
 	var buf strings.Builder
+	//goland:noinspection ALL
 	err := n.tmpl.Execute(&buf, data)
 	if err != nil {
 		t.Fatalf("template should not error on empty fields: %v", err)
