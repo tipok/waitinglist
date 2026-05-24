@@ -62,8 +62,9 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
   "projects": {
     "headerName": "X-Project-ID",
     "defaultSlug": "default",
-    "hostMapping": {
-      "api.acme.com": "acme-corp"
+    "definitions": {
+      "default": {"name": "Default"},
+      "acme-corp": {"name": "Acme Corp", "hostMapping": "api.acme.com"}
     }
   }
 }
@@ -86,7 +87,11 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | `admin.basicAuth.passwordHash` | string | — | Bcrypt hash of the admin password. If empty, admin routes are disabled. |
 | `projects.headerName` | string | `X-Project-ID` | HTTP header used to identify the project (value is the project slug). |
 | `projects.defaultSlug` | string | `default` | Fallback project slug when no header or host mapping matches. |
-| `projects.hostMapping` | object | `{}` | Maps incoming `Host` header values to project slugs (e.g. `{"api.acme.com": "acme-corp"}`). |
+| `projects.definitions.<slug>.name` | string | — | Human-readable project name. |
+| `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project, optional). |
+| `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size. |
+| `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window interval. |
+| `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable the scheduler for this project. |
 
 Duration values accept Go duration strings: `"30m"`, `"1h"`, `"24h"`, `"720h"` etc.
 
@@ -193,16 +198,16 @@ When disabled, the server logs `"scheduler disabled, skipping"` on startup. User
 
 ## Multi-Tenancy (Projects)
 
-The service supports multiple isolated projects (tenants). Each project has its own users, waiting list, and scheduler state. A `project` table stores project metadata and per-project scheduler settings.
+The service supports multiple isolated projects (tenants). Each project has its own users, waiting list, and scheduler state. Projects are defined entirely in the configuration file — no database table required.
 
-A "default" project is created automatically by the initial migration, so single-tenant deployments work out of the box without any project configuration.
+A "default" project must be defined in the configuration so single-tenant deployments work out of the box.
 
 ### Project Resolution
 
 On each incoming request, the active project is resolved using a 3-step fallback:
 
 1. **HTTP Header** — if the configured header (default `X-Project-ID`) contains a project slug, that project is used.
-2. **Host Mapping** — if the request `Host` matches an entry in `projects.hostMapping`, the mapped slug is used.
+2. **Host Mapping** — if the request `Host` matches a `hostMapping` value in any project definition, that project is used.
 3. **Default Slug** — falls back to `projects.defaultSlug` (default `"default"`).
 
 If resolution produces an unknown slug, the request is rejected with `400 Bad Request`.
@@ -215,15 +220,15 @@ If resolution produces an unknown slug, the request is rejected with `400 Bad Re
 
 ### Per-Project Configuration
 
-Each project row in the database can override global scheduler settings:
+Each project definition can override global scheduler settings:
 
-| Column | Overrides | Description |
-|--------|-----------|-------------|
-| `entry_batch_size` | `waitlist.entryBatchSize` | Max users promoted per batch for this project. |
-| `entry_window_interval` | `waitlist.entryWindowInterval` | Entry age threshold and cooldown for this project. |
-| `scheduler_disabled` | `schedulerInterval.disabled` | Disable automatic granting for this project only. |
+| Field | Overrides | Description |
+|-------|-----------|-------------|
+| `entryBatchSize` | `waitlist.entryBatchSize` | Max users promoted per batch for this project. |
+| `entryWindowInterval` | `waitlist.entryWindowInterval` | Entry age threshold and cooldown for this project. |
+| `schedulerDisabled` | `schedulerInterval.disabled` | Disable automatic granting for this project only. |
 
-When a per-project value is `NULL`, the global configuration applies.
+When a per-project value is omitted, the global configuration applies.
 
 ### Example: Multi-Project Setup
 
@@ -232,9 +237,19 @@ When a per-project value is `NULL`, the global configuration applies.
   "projects": {
     "headerName": "X-Project-ID",
     "defaultSlug": "default",
-    "hostMapping": {
-      "waitlist.acme.com": "acme-corp",
-      "waitlist.other.io": "other"
+    "definitions": {
+      "default": {"name": "Default"},
+      "acme-corp": {
+        "name": "Acme Corp",
+        "hostMapping": "waitlist.acme.com",
+        "entryBatchSize": 10,
+        "entryWindowInterval": "24h"
+      },
+      "other": {
+        "name": "Other",
+        "hostMapping": "waitlist.other.io",
+        "schedulerDisabled": true
+      }
     }
   }
 }

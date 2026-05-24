@@ -78,7 +78,7 @@ func main() {
 	resolver := handler.NewProjectResolver(
 		cfg.Projects.HeaderName,
 		cfg.Projects.DefaultSlug,
-		cfg.Projects.HostMapping,
+		cfg.Projects.BuildHostMapping(),
 		projects,
 		logger,
 	)

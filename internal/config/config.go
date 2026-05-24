@@ -38,13 +38,13 @@ type Config struct {
 type ProjectsConfig struct {
 	HeaderName  string                       `koanf:"headerName"`
 	DefaultSlug string                       `koanf:"defaultSlug"`
-	HostMapping map[string]string            `koanf:"hostMapping"`
 	Definitions map[string]ProjectDefinition `koanf:"definitions"`
 }
 
 // ProjectDefinition holds per-project metadata and optional scheduler overrides.
 type ProjectDefinition struct {
 	Name                string `koanf:"name"`
+	HostMapping         string `koanf:"hostMapping"`
 	EntryBatchSize      *int   `koanf:"entryBatchSize"`
 	EntryWindowInterval string `koanf:"entryWindowInterval"`
 	SchedulerDisabled   bool   `koanf:"schedulerDisabled"`
@@ -58,12 +58,27 @@ func (p ProjectsConfig) Validate() error {
 	if _, ok := p.Definitions[p.DefaultSlug]; !ok {
 		return fmt.Errorf("projects.defaultSlug %q not found in definitions", p.DefaultSlug)
 	}
-	for host, slug := range p.HostMapping {
-		if _, ok := p.Definitions[slug]; !ok {
-			return fmt.Errorf("projects.hostMapping[%q] references undefined slug %q", host, slug)
+	seen := make(map[string]string)
+	for slug, def := range p.Definitions {
+		if def.HostMapping != "" {
+			if other, exists := seen[def.HostMapping]; exists {
+				return fmt.Errorf("duplicate hostMapping %q in definitions %q and %q", def.HostMapping, other, slug)
+			}
+			seen[def.HostMapping] = slug
 		}
 	}
 	return nil
+}
+
+// BuildHostMapping derives a host-to-slug map from definitions.
+func (p ProjectsConfig) BuildHostMapping() map[string]string {
+	m := make(map[string]string)
+	for slug, def := range p.Definitions {
+		if def.HostMapping != "" {
+			m[def.HostMapping] = slug
+		}
+	}
+	return m
 }
 
 // Projects returns the definitions as a slice of model.Project.

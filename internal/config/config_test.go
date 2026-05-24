@@ -250,3 +250,107 @@ func TestLoad_MalformedJSON(t *testing.T) {
 		t.Fatal("expected error for malformed JSON")
 	}
 }
+
+func TestBuildHostMapping_CollectsFromDefinitions(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{
+			"default":  {Name: "Default"},
+			"beta-app": {Name: "Beta App", HostMapping: "beta.localhost"},
+			"tools":    {Name: "Tools", HostMapping: "tools.localhost"},
+		},
+	}
+
+	m := pc.BuildHostMapping()
+	if len(m) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(m))
+	}
+	if m["beta.localhost"] != "beta-app" {
+		t.Errorf("expected beta.localhost -> beta-app, got %s", m["beta.localhost"])
+	}
+	if m["tools.localhost"] != "tools" {
+		t.Errorf("expected tools.localhost -> tools, got %s", m["tools.localhost"])
+	}
+}
+
+func TestBuildHostMapping_SkipsEmpty(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{
+			"default":  {Name: "Default"},
+			"beta-app": {Name: "Beta App", HostMapping: "beta.localhost"},
+		},
+	}
+
+	m := pc.BuildHostMapping()
+	if len(m) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(m))
+	}
+	if m["beta.localhost"] != "beta-app" {
+		t.Errorf("expected beta.localhost -> beta-app, got %s", m["beta.localhost"])
+	}
+}
+
+func TestValidate_DuplicateHostMapping_ReturnsError(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{
+			"default": {Name: "Default"},
+			"app-a":   {Name: "App A", HostMapping: "same.host"},
+			"app-b":   {Name: "App B", HostMapping: "same.host"},
+		},
+	}
+
+	err := pc.Validate()
+	if err == nil {
+		t.Fatal("expected error for duplicate hostMapping")
+	}
+}
+
+func TestValidate_NoDefinitions_ReturnsError(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{},
+	}
+
+	err := pc.Validate()
+	if err == nil {
+		t.Fatal("expected error for empty definitions")
+	}
+}
+
+func TestValidate_DefaultSlugMissing_ReturnsError(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "missing",
+		Definitions: map[string]ProjectDefinition{
+			"default": {Name: "Default"},
+		},
+	}
+
+	err := pc.Validate()
+	if err == nil {
+		t.Fatal("expected error for missing defaultSlug in definitions")
+	}
+}
+
+func TestLoad_WithHostMappingInDefinitions(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"projects": {
+			"defaultSlug": "default",
+			"definitions": {
+				"default": {"name": "Default"},
+				"beta": {"name": "Beta", "hostMapping": "beta.example.com", "entryBatchSize": 5}
+			}
+		}
+	}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.Projects.BuildHostMapping()
+	if m["beta.example.com"] != "beta" {
+		t.Errorf("expected beta.example.com -> beta, got %s", m["beta.example.com"])
+	}
+}

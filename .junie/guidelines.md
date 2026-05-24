@@ -90,7 +90,11 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `admin.basicAuth.passwordHash` | string | — | Bcrypt hash of admin password (empty = admin routes disabled) |
 | `projects.headerName` | string | `X-Project-ID` | Header name for project identification |
 | `projects.defaultSlug` | string | `default` | Fallback project slug when no header/host match |
-| `projects.hostMapping` | map[string]string | — | Host → project slug mapping (JSON config only) |
+| `projects.definitions.<slug>.name` | string | — | Human-readable project name |
+| `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project) |
+| `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size |
+| `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window |
+| `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
 
 #### Environment Variable Override
 
@@ -236,6 +240,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `21-healthcheck-ipv4-loopback` | ✅ Complete | Probe `127.0.0.1` instead of `localhost` so the IPv4-bound server is reachable in distroless containers |
 | `22-healthcheck-ipv4-bind` | ✅ Complete | Bind server to `0.0.0.0:port` explicitly so `127.0.0.1` health probe succeeds when `IPV6_V6ONLY=1` in distroless containers |
 | `23-multi-tenancy` | ✅ Complete | Multi-tenancy: project-scoped users, waiting lists, and scheduler with tenant resolution middleware |
+| `25-inline-host-mapping` | ✅ Complete | Move `hostMapping` from top-level map into per-project definitions |
 
 ## Development Workflow
 
