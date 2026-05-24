@@ -91,7 +91,14 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project, optional). |
 | `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size. |
 | `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window interval. |
+| `projects.definitions.<slug>.emailFrom` | string | — | Sender address for access-granted emails (skip if empty). |
+| `projects.definitions.<slug>.emailSubject` | string | — | Subject line for access-granted emails (skip if empty). |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable the scheduler for this project. |
+| `smtp.host` | string | — | SMTP server hostname. If empty, email notifications are disabled globally. |
+| `smtp.port` | int | — | SMTP server port (e.g. 587 for STARTTLS, 465 for implicit TLS). |
+| `smtp.username` | string | — | SMTP authentication username. |
+| `smtp.password` | string | — | SMTP authentication password. |
+| `smtp.tls` | bool | `false` | Use implicit TLS connection (port 465). When false, STARTTLS is attempted if supported. |
 
 Duration values accept Go duration strings: `"30m"`, `"1h"`, `"24h"`, `"720h"` etc.
 
@@ -118,6 +125,11 @@ Every configuration field can be overridden with an environment variable. The ma
 | `admin.basicAuth.passwordHash` | `WL_ADMIN_BASICAUTH_PASSWORDHASH` | `WL_ADMIN_BASICAUTH_PASSWORDHASH='$2y$10$...'` |
 | `projects.headerName` | `WL_PROJECTS_HEADERNAME` | `WL_PROJECTS_HEADERNAME=X-Tenant` |
 | `projects.defaultSlug` | `WL_PROJECTS_DEFAULTSLUG` | `WL_PROJECTS_DEFAULTSLUG=default` |
+| `smtp.host` | `WL_SMTP_HOST` | `WL_SMTP_HOST=smtp.example.com` |
+| `smtp.port` | `WL_SMTP_PORT` | `WL_SMTP_PORT=587` |
+| `smtp.username` | `WL_SMTP_USERNAME` | `WL_SMTP_USERNAME=apikey` |
+| `smtp.password` | `WL_SMTP_PASSWORD` | `WL_SMTP_PASSWORD=secret` |
+| `smtp.tls` | `WL_SMTP_TLS` | `WL_SMTP_TLS=true` |
 
 Environment variables take precedence over values in the JSON file.
 

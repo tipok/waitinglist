@@ -216,6 +216,48 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.UserEnt
 	return user, nil
 }
 
+// GetByIDs returns users matching the given IDs.
+//
+//goland:noinspection ALL
+func (r *UserRepository) GetByIDs(ctx context.Context, ids []string) ([]model.UserEntity, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	//goland:noinspection ALL
+	query := `SELECT ` + userSelectColumns + `
+		FROM user_entity
+		WHERE id IN (` + strings.Join(placeholders, ",") + `)`
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("querying users by ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []model.UserEntity
+	for rows.Next() {
+		var u model.UserEntity
+		if err := rows.Scan(
+			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
+			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
+			&u.AccessGrantedAt, &u.AccessGrantedBy,
+			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
+		); err != nil {
+			return nil, fmt.Errorf("scanning user row: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // CountByAccess returns (waitListCount, withAccessCount) — the number of
 // users currently on the waiting list and the number of users who currently
 // have access. When projectSlug is non-empty, counts are scoped to that project.

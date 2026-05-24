@@ -66,7 +66,7 @@ func (f *fakeAdminWaitlistStore) BeginTx(ctx context.Context) (model.Tx, error) 
 func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHandler, *http.ServeMux) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	projects := []model.Project{{Slug: "default", Name: "Default"}}
-	h := NewAdminHandler(us, ws, projects, logger)
+	h := NewAdminHandler(us, ws, projects, logger, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	return h, mux
@@ -477,7 +477,7 @@ func TestAdmin_ListProjects_HappyPath(t *testing.T) {
 		{Slug: "alpha", Name: "Alpha Project"},
 		{Slug: "beta", Name: "Beta Project"},
 	}
-	h := NewAdminHandler(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, logger)
+	h := NewAdminHandler(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, logger, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

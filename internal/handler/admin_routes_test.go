@@ -38,7 +38,7 @@ func buildAdminServer(t *testing.T, username, password string) http.Handler {
 	ws := &fakeAdminWaitlistStore{}
 
 	projects := []model.Project{{Slug: "default", Name: "Default"}}
-	adminHandler := NewAdminHandler(us, ws, projects, logger)
+	adminHandler := NewAdminHandler(us, ws, projects, logger, nil)
 	auth := BasicAuthMiddleware(username, hash, "test", logger)
 
 	adminMux := http.NewServeMux()

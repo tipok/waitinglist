@@ -41,6 +41,10 @@ waitinglist/
 │   │   └── waitinglist.go          # HTTP handlers for waiting list endpoints
 │   ├── logger/logger.go            # slog logger construction
 │   ├── model/model.go              # Data structures, sentinel errors, DB/Tx interfaces
+│   ├── notifier/
+│   │   ├── notifier.go             # SMTP notifier (sends access-granted emails)
+│   │   └── templates/              # Embedded HTML email templates
+│   │       └── access_granted.html # Access-granted notification template
 │   ├── repository/
 │   │   ├── project.go              # DB operations for project table
 │   │   ├── scheduler.go            # DB operations for scheduler_state table
@@ -94,7 +98,14 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project) |
 | `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size |
 | `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window |
+| `projects.definitions.<slug>.emailFrom` | string | — | Sender address for access-granted email (skip if empty) |
+| `projects.definitions.<slug>.emailSubject` | string | — | Subject line for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
+| `smtp.host` | string | — | SMTP server hostname (empty = notifications disabled) |
+| `smtp.port` | int | — | SMTP server port |
+| `smtp.username` | string | — | SMTP auth username |
+| `smtp.password` | string | — | SMTP auth password |
+| `smtp.tls` | bool | `false` | Use implicit TLS (port 465); otherwise STARTTLS is attempted |
 
 #### Environment Variable Override
 
@@ -113,6 +124,11 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 - `admin.basicAuth.passwordHash` → `WL_ADMIN_BASICAUTH_PASSWORDHASH`
 - `projects.headerName` → `WL_PROJECTS_HEADERNAME`
 - `projects.defaultSlug` → `WL_PROJECTS_DEFAULTSLUG`
+- `smtp.host` → `WL_SMTP_HOST`
+- `smtp.port` → `WL_SMTP_PORT`
+- `smtp.username` → `WL_SMTP_USERNAME`
+- `smtp.password` → `WL_SMTP_PASSWORD`
+- `smtp.tls` → `WL_SMTP_TLS`
 
 ### Database
 
@@ -241,6 +257,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `22-healthcheck-ipv4-bind` | ✅ Complete | Bind server to `0.0.0.0:port` explicitly so `127.0.0.1` health probe succeeds when `IPV6_V6ONLY=1` in distroless containers |
 | `23-multi-tenancy` | ✅ Complete | Multi-tenancy: project-scoped users, waiting lists, and scheduler with tenant resolution middleware |
 | `25-inline-host-mapping` | ✅ Complete | Move `hostMapping` from top-level map into per-project definitions |
+| `26-smtp-notifications` | ✅ Complete | SMTP email notifications on access grant (per-project from/subject, embedded HTML template) |
 
 ## Development Workflow
 

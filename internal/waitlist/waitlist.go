@@ -7,6 +7,7 @@ import (
 
 	"github.com/tipok/waitinglist/internal/config"
 	"github.com/tipok/waitinglist/internal/model"
+	"github.com/tipok/waitinglist/internal/notifier"
 )
 
 const schedulerKeyWaitlistLastSuccess = "waitlist_last_success"
@@ -19,6 +20,7 @@ type waitingListStore interface {
 
 type userStore interface {
 	GrantAccessTx(ctx context.Context, tx model.DBTX, ids []string, source string) error
+	GetByIDs(ctx context.Context, ids []string) ([]model.UserEntity, error)
 }
 
 type schedulerStore interface {
@@ -34,6 +36,7 @@ func Start(
 	waitingListRepo waitingListStore,
 	userRepo userStore,
 	schedulerRepo schedulerStore,
+	emailNotifier notifier.Notifier,
 ) error {
 	if cfg.SchedulerInterval.Disabled {
 		logger.Info("scheduler disabled globally, skipping")
@@ -115,6 +118,17 @@ func Start(
 
 		logger.Info("scheduler batch processed",
 			"project", p.Slug, "granted", len(usersToAllow))
+
+		if emailNotifier != nil {
+			users, fetchErr := userRepo.GetByIDs(ctx, usersToAllow)
+			if fetchErr != nil {
+				logger.Warn("scheduler: failed to fetch users for notification", "error", fetchErr, "project", p.Slug)
+			} else {
+				for _, u := range users {
+					emailNotifier.NotifyAccessGranted(u, p)
+				}
+			}
+		}
 	}
 
 	checkAllProjects := func() {

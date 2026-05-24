@@ -19,6 +19,7 @@ import (
 	"github.com/tipok/waitinglist/internal/handler"
 	"github.com/tipok/waitinglist/internal/handler/adminui"
 	lg "github.com/tipok/waitinglist/internal/logger"
+	"github.com/tipok/waitinglist/internal/notifier"
 	"github.com/tipok/waitinglist/internal/repository"
 	"github.com/tipok/waitinglist/internal/waitlist"
 )
@@ -83,9 +84,15 @@ func main() {
 		logger,
 	)
 
+	var emailNotifier notifier.Notifier
+	if n := notifier.New(cfg.SMTP, logger); n != nil {
+		emailNotifier = n
+		logger.Info("smtp notifier enabled", "host", cfg.SMTP.Host, "port", cfg.SMTP.Port)
+	}
+
 	waitListHandler := handler.NewWaitingListHandler(userRepo, waitListRepo, logger)
 	healthHandler := handler.NewHealthHandler(db, logger)
-	err = waitlist.Start(ctx, cfg, logger, projects, waitListRepo, userRepo, schedulerRepo)
+	err = waitlist.Start(ctx, cfg, logger, projects, waitListRepo, userRepo, schedulerRepo, emailNotifier)
 	if err != nil {
 		logger.Error("Error starting waitlist", "error", err)
 		os.Exit(1)
@@ -107,7 +114,7 @@ func main() {
 	if adminUser == "" || len(adminHash) == 0 {
 		logger.Warn("admin basic auth not configured; /admin routes disabled")
 	} else {
-		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projects, logger)
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projects, logger, emailNotifier)
 		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
 
 		adminMux := http.NewServeMux()

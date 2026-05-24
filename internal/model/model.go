@@ -59,6 +59,8 @@ var (
 type Project struct {
 	Slug                  string    `json:"slug"`
 	Name                  string    `json:"name"`
+	EmailFrom             string    `json:"email_from,omitempty"`
+	EmailSubject          string    `json:"email_subject,omitempty"`
 	EntryBatchSize        *int      `json:"entry_batch_size,omitempty"`
 	EntryWindowInterval   *Duration `json:"entry_window_interval,omitempty"`
 	WaitlistCheckInterval *Duration `json:"waitlist_check_interval,omitempty"`

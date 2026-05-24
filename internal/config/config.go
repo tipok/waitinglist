@@ -32,6 +32,16 @@ type Config struct {
 	SchedulerInterval SchedulerIntervalConfig `koanf:"schedulerInterval"`
 	Admin             AdminConfig             `koanf:"admin"`
 	Projects          ProjectsConfig          `koanf:"projects"`
+	SMTP              SMTPConfig              `koanf:"smtp"`
+}
+
+// SMTPConfig holds global SMTP connection settings for sending notifications.
+type SMTPConfig struct {
+	Host     string `koanf:"host"`
+	Port     int    `koanf:"port"`
+	Username string `koanf:"username"`
+	Password string `koanf:"password"`
+	TLS      bool   `koanf:"tls"`
 }
 
 // ProjectsConfig configures multi-tenancy project resolution.
@@ -45,6 +55,8 @@ type ProjectsConfig struct {
 type ProjectDefinition struct {
 	Name                string `koanf:"name"`
 	HostMapping         string `koanf:"hostMapping"`
+	EmailFrom           string `koanf:"emailFrom"`
+	EmailSubject        string `koanf:"emailSubject"`
 	EntryBatchSize      *int   `koanf:"entryBatchSize"`
 	EntryWindowInterval string `koanf:"entryWindowInterval"`
 	SchedulerDisabled   bool   `koanf:"schedulerDisabled"`
@@ -88,6 +100,8 @@ func (p ProjectsConfig) Projects() []model.Project {
 		proj := model.Project{
 			Slug:              slug,
 			Name:              def.Name,
+			EmailFrom:         def.EmailFrom,
+			EmailSubject:      def.EmailSubject,
 			EntryBatchSize:    def.EntryBatchSize,
 			SchedulerDisabled: def.SchedulerDisabled,
 		}

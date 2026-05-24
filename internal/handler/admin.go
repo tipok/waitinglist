@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tipok/waitinglist/internal/model"
+	"github.com/tipok/waitinglist/internal/notifier"
 )
 
 const (
@@ -48,15 +49,16 @@ type AdminWaitingListStore interface {
 // AdminHandler serves the /admin/* JSON endpoints. The caller is responsible
 // for wrapping the registered routes in BasicAuthMiddleware.
 type AdminHandler struct {
-	userStore AdminUserStore
-	wlStore   AdminWaitingListStore
-	projects  []model.Project
-	logger    *slog.Logger
+	userStore     AdminUserStore
+	wlStore       AdminWaitingListStore
+	projects      []model.Project
+	logger        *slog.Logger
+	emailNotifier notifier.Notifier
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projects []model.Project, logger *slog.Logger) *AdminHandler {
-	return &AdminHandler{userStore: userStore, wlStore: wlStore, projects: projects, logger: logger}
+func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projects []model.Project, logger *slog.Logger, emailNotifier notifier.Notifier) *AdminHandler {
+	return &AdminHandler{userStore: userStore, wlStore: wlStore, projects: projects, logger: logger, emailNotifier: emailNotifier}
 }
 
 // RegisterRoutes registers the admin routes on the given mux. Wrap the mux
@@ -235,6 +237,13 @@ func (h *AdminHandler) handleGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.emailNotifier != nil && user != nil {
+		proj := h.findProject(user.ProjectSlug)
+		if proj != nil {
+			h.emailNotifier.NotifyAccessGranted(*user, *proj)
+		}
+	}
+
 	h.logger.Info("admin grant: access granted", "admin_user", adminUser, "user_id", id)
 	WriteJSON(w, http.StatusOK, user, h.logger)
 }
@@ -345,6 +354,15 @@ func (h *AdminHandler) resolveProjectFilter(r *http.Request, w http.ResponseWrit
 
 func (h *AdminHandler) handleListProjects(w http.ResponseWriter, _ *http.Request) {
 	WriteJSON(w, http.StatusOK, h.projects, h.logger)
+}
+
+func (h *AdminHandler) findProject(slug string) *model.Project {
+	for i := range h.projects {
+		if h.projects[i].Slug == slug {
+			return &h.projects[i]
+		}
+	}
+	return nil
 }
 
 // parseIntQuery parses a query parameter as an int, applying a default when
