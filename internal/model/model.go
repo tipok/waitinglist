@@ -65,6 +65,10 @@ type Project struct {
 	EntryWindowInterval   *Duration `json:"entry_window_interval,omitempty"`
 	WaitlistCheckInterval *Duration `json:"waitlist_check_interval,omitempty"`
 	SchedulerDisabled     bool      `json:"scheduler_disabled"`
+	DigestRecipients      []string  `json:"digest_recipients,omitempty"`
+	DigestInterval        *Duration `json:"digest_interval,omitempty"`
+	DigestFrom            string    `json:"digest_from,omitempty"`
+	DigestSubject         string    `json:"digest_subject,omitempty"`
 }
 
 // UserEntity represents a user stored in the user_entity table.

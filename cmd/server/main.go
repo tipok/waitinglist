@@ -98,6 +98,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	if smtpNotifier, ok := emailNotifier.(*notifier.SMTPNotifier); ok {
+		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, smtpNotifier)
+	} else {
+		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, nil)
+	}
+
 	mux := http.NewServeMux()
 
 	// Tenant-scoped routes go through the project resolver middleware.

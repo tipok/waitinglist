@@ -43,14 +43,18 @@ waitinglist/
 │   ├── model/model.go              # Data structures, sentinel errors, DB/Tx interfaces
 │   ├── notifier/
 │   │   ├── notifier.go             # SMTP notifier (sends access-granted emails)
+│   │   ├── digest.go               # Digest email types, template rendering, SendDigest
 │   │   └── templates/              # Embedded HTML email templates
-│   │       └── access_granted.html # Access-granted notification template
+│   │       ├── access_granted.html # Access-granted notification template
+│   │       └── digest.html         # Admin digest email template
 │   ├── repository/
 │   │   ├── project.go              # DB operations for project table
 │   │   ├── scheduler.go            # DB operations for scheduler_state table
 │   │   ├── user.go                 # DB operations for user_entity table (CRUD, grant, revoke)
 │   │   └── waitinglist.go          # DB operations for waiting_list table
-│   └── waitlist/waitlist.go        # Background scheduler goroutine that grants access
+│   └── waitlist/
+│       ├── waitlist.go             # Background scheduler goroutine that grants access
+│       └── digest.go              # Background digest email scheduler
 ├── migrations/
 │   ├── 001_init.sql                # Initial schema (user_entity, waiting_list)
 │   ├── 002_schema_improvements.sql # weight column, weighted_created_at
@@ -101,6 +105,10 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `projects.definitions.<slug>.emailFrom` | string | — | Sender address for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.emailSubject` | string | — | Subject line for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
+| `projects.definitions.<slug>.digestRecipients` | []string | — | Email addresses to receive digest (empty = digest disabled) |
+| `projects.definitions.<slug>.digestInterval` | duration | `24h` | How often to send digest emails |
+| `projects.definitions.<slug>.digestFrom` | string | — | Sender address for digest (falls back to `emailFrom`) |
+| `projects.definitions.<slug>.digestSubject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`) |
 | `smtp.host` | string | — | SMTP server hostname (empty = notifications disabled) |
 | `smtp.port` | int | — | SMTP server port |
 | `smtp.username` | string | — | SMTP auth username |
@@ -259,6 +267,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `23-multi-tenancy` | ✅ Complete | Multi-tenancy: project-scoped users, waiting lists, and scheduler with tenant resolution middleware |
 | `25-inline-host-mapping` | ✅ Complete | Move `hostMapping` from top-level map into per-project definitions |
 | `26-smtp-notifications` | ✅ Complete | SMTP email notifications on access grant (per-project from/subject, embedded HTML template) |
+| `27-admin-digest-email` | ✅ Complete | Periodic admin digest email summarizing new waitlist entries and access grants per project |
 
 ## Development Workflow
 

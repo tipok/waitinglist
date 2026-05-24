@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 20px; background-color: #f5f5f5;">
+  <div style="max-width: 700px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <h1 style="color: #333; margin-top: 0;">{{.ProjectName}} — Activity Digest</h1>
+    <p style="color: #777; font-size: 14px;">Period: {{.PeriodStart}} &rarr; {{.PeriodEnd}}</p>
+
+    {{if .NewEnlisted}}
+    <h2 style="color: #333; border-bottom: 1px solid #eee; padding-bottom: 8px;">New Waiting List Entries ({{.EnlistedCount}})</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr style="background: #f9f9f9;">
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Name</th>
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Email</th>
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Joined</th>
+      </tr>
+      {{range .NewEnlisted}}
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.Firstname}} {{.Lastname}}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.Email}}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.JoinedAt}}</td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+
+    {{if .NewGranted}}
+    <h2 style="color: #333; border-bottom: 1px solid #eee; padding-bottom: 8px;">Access Granted ({{.GrantedCount}})</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr style="background: #f9f9f9;">
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Name</th>
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Email</th>
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">Granted At</th>
+        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee;">By</th>
+      </tr>
+      {{range .NewGranted}}
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.Firstname}} {{.Lastname}}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.Email}}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.GrantedAt}}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">{{.GrantedBy}}</td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+
+    {{if and (not .NewEnlisted) (not .NewGranted)}}
+    <p style="color: #777; font-size: 14px;">No activity during this period.</p>
+    {{end}}
+  </div>
+</body>
+</html>

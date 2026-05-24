@@ -408,6 +408,39 @@ func (r *UserRepository) ListWithAccess(ctx context.Context, projectSlug, emailL
 	return users, nil
 }
 
+// GetGrantedSince returns users whose access was granted after the given
+// timestamp, scoped to a project.
+//
+//goland:noinspection ALL
+func (r *UserRepository) GetGrantedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.UserEntity, error) {
+	//goland:noinspection ALL
+	query := `SELECT ` + userSelectColumns + `
+		FROM user_entity
+		WHERE project_slug = $1 AND access_granted_at > $2
+		ORDER BY access_granted_at ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, projectSlug, since)
+	if err != nil {
+		return nil, fmt.Errorf("querying users granted since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []model.UserEntity
+	for rows.Next() {
+		var u model.UserEntity
+		if err := rows.Scan(
+			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
+			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
+			&u.AccessGrantedAt, &u.AccessGrantedBy,
+			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
+		); err != nil {
+			return nil, fmt.Errorf("scanning granted user: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // RevokeAccess flips has_access to false for one user and records the
 // revocation timestamp, admin identifier, and reason.
 func (r *UserRepository) RevokeAccess(ctx context.Context, id, reason, by string) error {

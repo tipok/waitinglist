@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -96,6 +97,40 @@ func (r *WaitingListRepository) GetWithOffsetLimit(ctx context.Context, projectS
 	}
 
 	return entries, nil
+}
+
+// GetEnlistedSince returns waiting-list entries (joined with user data) created
+// after the given timestamp, scoped to a project.
+//
+//goland:noinspection ALL
+func (r *WaitingListRepository) GetEnlistedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.WaitingListAdminRow, error) {
+	//goland:noinspection ALL
+	const query = `
+		SELECT wl.id, wl.project_slug, wl.user_id, ue.email, ue.firstname, ue.lastname,
+		       wl.weight, wl.created_at, wl.weighted_created_at
+		FROM   waiting_list wl
+		JOIN   user_entity  ue ON ue.id = wl.user_id
+		WHERE  wl.project_slug = $1 AND wl.created_at > $2
+		ORDER  BY wl.created_at ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, projectSlug, since)
+	if err != nil {
+		return nil, fmt.Errorf("querying enlisted since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []model.WaitingListAdminRow
+	for rows.Next() {
+		var row model.WaitingListAdminRow
+		if err := rows.Scan(
+			&row.EntryID, &row.ProjectSlug, &row.UserID, &row.Email, &row.Firstname, &row.Lastname,
+			&row.Weight, &row.CreatedAt, &row.WeightedCreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scanning enlisted row: %w", err)
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 // DeleteByIDs deletes waiting list entries with the given IDs.

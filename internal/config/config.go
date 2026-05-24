@@ -53,13 +53,17 @@ type ProjectsConfig struct {
 
 // ProjectDefinition holds per-project metadata and optional scheduler overrides.
 type ProjectDefinition struct {
-	Name                string `koanf:"name"`
-	HostMapping         string `koanf:"hostMapping"`
-	EmailFrom           string `koanf:"emailFrom"`
-	EmailSubject        string `koanf:"emailSubject"`
-	EntryBatchSize      *int   `koanf:"entryBatchSize"`
-	EntryWindowInterval string `koanf:"entryWindowInterval"`
-	SchedulerDisabled   bool   `koanf:"schedulerDisabled"`
+	Name                string   `koanf:"name"`
+	HostMapping         string   `koanf:"hostMapping"`
+	EmailFrom           string   `koanf:"emailFrom"`
+	EmailSubject        string   `koanf:"emailSubject"`
+	EntryBatchSize      *int     `koanf:"entryBatchSize"`
+	EntryWindowInterval string   `koanf:"entryWindowInterval"`
+	SchedulerDisabled   bool     `koanf:"schedulerDisabled"`
+	DigestRecipients    []string `koanf:"digestRecipients"`
+	DigestInterval      string   `koanf:"digestInterval"`
+	DigestFrom          string   `koanf:"digestFrom"`
+	DigestSubject       string   `koanf:"digestSubject"`
 }
 
 // Validate checks that all slug references in the config are defined in Definitions.
@@ -104,11 +108,19 @@ func (p ProjectsConfig) Projects() []model.Project {
 			EmailSubject:      def.EmailSubject,
 			EntryBatchSize:    def.EntryBatchSize,
 			SchedulerDisabled: def.SchedulerDisabled,
+			DigestRecipients:  def.DigestRecipients,
+			DigestFrom:        def.DigestFrom,
+			DigestSubject:     def.DigestSubject,
 		}
 		if def.EntryWindowInterval != "" {
 			d, _ := time.ParseDuration(def.EntryWindowInterval)
 			dur := model.Duration(d)
 			proj.EntryWindowInterval = &dur
+		}
+		if def.DigestInterval != "" {
+			d, _ := time.ParseDuration(def.DigestInterval)
+			dur := model.Duration(d)
+			proj.DigestInterval = &dur
 		}
 		projects = append(projects, proj)
 	}

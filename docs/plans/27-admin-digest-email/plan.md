@@ -1,6 +1,6 @@
 # 27 — Admin Digest Email (Scheduled Activity Summary)
 
-> **Status:** Draft — awaiting answers to open questions
+> **Status:** ✅ Complete
 
 ## Overview
 
@@ -281,17 +281,17 @@ func StartDigest(
 
 ## Acceptance Criteria
 
-- [ ] Per-project `digestRecipients`, `digestInterval`, `digestFrom`, `digestSubject` config fields added.
-- [ ] `model.Project` carries digest config fields.
-- [ ] Repository query `GetGrantedSince` returns users granted access after a timestamp.
-- [ ] Repository query `GetEnlistedSince` returns waitlist entries created after a timestamp.
-- [ ] HTML digest template embedded via `//go:embed`, renders both sections conditionally.
-- [ ] `SMTPNotifier.SendDigest` sends HTML email to multiple recipients.
-- [ ] Digest scheduler runs as a background goroutine alongside the access-grant scheduler.
-- [ ] Digest skips projects with empty `digestRecipients`.
-- [ ] Digest skips sending when no activity occurred since last digest.
-- [ ] `scheduler_state` tracks last digest timestamp per project (key: `digest_last_success`).
-- [ ] Errors logged at `Warn`, never propagated or block other projects.
-- [ ] `conf/dev.json` includes digest config for local testing.
-- [ ] `CLAUDE.md` documents new config fields.
-- [ ] `make format`, `make lint`, `make test` all pass.
+- [x] Per-project `digestRecipients`, `digestInterval`, `digestFrom`, `digestSubject` config fields added.
+- [x] `model.Project` carries digest config fields.
+- [x] Repository query `GetGrantedSince` returns users granted access after a timestamp.
+- [x] Repository query `GetEnlistedSince` returns waitlist entries created after a timestamp.
+- [x] HTML digest template embedded via `//go:embed`, renders both sections conditionally.
+- [x] `SMTPNotifier.SendDigest` sends HTML email to multiple recipients.
+- [x] Digest scheduler runs as a background goroutine alongside the access-grant scheduler.
+- [x] Digest skips projects with empty `digestRecipients`.
+- [x] Digest skips sending when no activity occurred since last digest.
+- [x] `scheduler_state` tracks last digest timestamp per project (key: `digest_last_success`).
+- [x] Errors logged at `Warn`, never propagated or block other projects.
+- [x] `conf/dev.json` includes digest config for local testing.
+- [x] `CLAUDE.md` documents new config fields.
+- [x] `make format`, `make lint`, `make test` all pass.
