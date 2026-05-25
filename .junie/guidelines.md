@@ -48,7 +48,6 @@ waitinglist/
 │   │       ├── access_granted.html # Access-granted notification template
 │   │       └── digest.html         # Admin digest email template
 │   ├── repository/
-│   │   ├── project.go              # DB operations for project table
 │   │   ├── scheduler.go            # DB operations for scheduler_state table
 │   │   ├── user.go                 # DB operations for user_entity table (CRUD, grant, revoke)
 │   │   └── waitinglist.go          # DB operations for waiting_list table
@@ -56,14 +55,7 @@ waitinglist/
 │       ├── waitlist.go             # Background scheduler goroutine that grants access
 │       └── digest.go              # Background digest email scheduler
 ├── migrations/
-│   ├── 001_init.sql                # Initial schema (user_entity, waiting_list)
-│   ├── 002_schema_improvements.sql # weight column, weighted_created_at
-│   ├── 003_scheduler_state.sql     # scheduler_state table for cooldown tracking
-│   ├── 004_user_created_at.sql
-│   ├── 005_user_entity_ip.sql      # ip_address column on user_entity
-│   ├── 006_has_access_one_way.sql  # One-way has_access trigger (dropped by 007)
-│   ├── 007_access_audit_and_drop_one_way.sql  # Access audit columns; drops 006's trigger
-│   └── 008_multi_tenancy.sql       # Multi-tenancy: project table, project_id columns, composite indexes
+│   └── 001_init.sql                # Consolidated schema (user_entity, waiting_list, scheduler_state with project_slug multi-tenancy)
 ├── conf/dev.json                   # Development configuration file
 ├── docs/plans/                     # Feature plans
 ├── Dockerfile                      # Multi-stage build → distroless runtime
@@ -140,9 +132,9 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 
 ### Database
 
-- PostgreSQL with four tables: `project`, `user_entity`, `waiting_list`, and `scheduler_state`.
+- PostgreSQL with three tables: `user_entity`, `waiting_list`, and `scheduler_state`. Multi-tenancy uses a `project_slug` text column (no separate project table — projects are defined in config only).
 - Migrations are plain `.sql` files in `migrations/`, executed in alphabetical order on startup.
-- Schema uses `IF NOT EXISTS` for idempotent migrations.
+- Schema uses `IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` for idempotent migrations.
 - All migrations run on every startup (no migration state table) — they must be written to be re-runnable.
 - Integration tests requiring a real database are gated by the `TEST_DATABASE_URL` environment variable.
 
@@ -171,9 +163,7 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 | `POST` | `/admin/users/{id}/grant-access` | **Admin · Basic Auth.** Admin-grants access (atomic with waitlist removal); returns the updated user. |
 | `POST` | `/admin/users/{id}/revoke-access` | **Admin · Basic Auth.** Body `{"reason":"…"}` (1..500 chars). Calls `RevokeAccess` with the authenticated admin as `revoked_by`. |
 | `DELETE` | `/admin/waitlist/{id}` | **Admin · Basic Auth.** Removes a single waiting-list row by entry id. |
-| `GET`  | `/admin/projects` | **Admin · Basic Auth.** List all projects. |
-| `POST` | `/admin/projects` | **Admin · Basic Auth.** Create a project (slug, name, scheduler config). |
-| `PUT`  | `/admin/projects/{id}` | **Admin · Basic Auth.** Update project name/scheduler config. |
+| `GET`  | `/admin/projects` | **Admin · Basic Auth.** List all projects (from configuration). |
 | `GET`  | `/admin/` (and `/admin/{asset}`) | **Admin · Basic Auth.** Embedded HTML/CSS/JS admin SPA (dashboard + lists + actions). Served from `embed.FS` in `internal/handler/adminui/`. |
 
 > **Note:** `GET /admin/dashboard`, `GET /admin/users/access`, and `GET /admin/users/waitlist` accept an optional `?project=<slug>` query parameter to scope results to a specific project.
@@ -264,7 +254,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `20-healthcheck-config-decouple` | ✅ Complete | Stop requiring a config file in `--health-check` mode; resolve port via `WL_PORT` env → default |
 | `21-healthcheck-ipv4-loopback` | ✅ Complete | Probe `127.0.0.1` instead of `localhost` so the IPv4-bound server is reachable in distroless containers |
 | `22-healthcheck-ipv4-bind` | ✅ Complete | Bind server to `0.0.0.0:port` explicitly so `127.0.0.1` health probe succeeds when `IPV6_V6ONLY=1` in distroless containers |
-| `23-multi-tenancy` | ✅ Complete | Multi-tenancy: project-scoped users, waiting lists, and scheduler with tenant resolution middleware |
+| `23-multi-tenancy` | ✅ Complete | Multi-tenancy: config-defined projects with `project_slug` scoping on users, waiting lists, and scheduler; tenant resolution middleware |
 | `25-inline-host-mapping` | ✅ Complete | Move `hostMapping` from top-level map into per-project definitions |
 | `26-smtp-notifications` | ✅ Complete | SMTP email notifications on access grant (per-project from/subject, embedded HTML template) |
 | `27-admin-digest-email` | ✅ Complete | Periodic admin digest email summarizing new waitlist entries and access grants per project |
