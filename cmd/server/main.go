@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -33,7 +31,7 @@ func main() {
 	}
 
 	if flags.HealthCheck {
-		runHealthCheck(logger, resolveHealthCheckPort())
+		runHealthCheck(resolveHealthCheckPort())
 	}
 
 	cfg, err := config.Load(flags.ConfigPath)
@@ -59,11 +57,11 @@ func main() {
 		logger.Error("Error connecting to database", "error", err)
 		os.Exit(1)
 	}
-	defer func(db *sql.DB) {
+	defer func() {
 		if err := db.Close(); err != nil {
 			logger.Error("Error closing database connection", "error", err)
 		}
-	}(db)
+	}()
 
 	if err := database.RunMigrations(db, cfg.Database.MigrationsDir, logger); err != nil {
 		logger.Error("Error running migrations", "error", err)
@@ -195,7 +193,8 @@ func probeHealth(port int) error {
 }
 
 // runHealthCheck calls probeHealth and exits with the appropriate code.
-func runHealthCheck(logger *slog.Logger, port int) {
+func runHealthCheck(port int) {
+	logger := lg.NewLogger()
 	if err := probeHealth(port); err != nil {
 		logger.Error("health check failed", "error", err)
 		os.Exit(1)
