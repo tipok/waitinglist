@@ -1,4 +1,0 @@
-CREATE TABLE IF NOT EXISTS scheduler_state (
-    key   VARCHAR(100) PRIMARY KEY,
-    value TIMESTAMP NOT NULL DEFAULT NOW()
-);
