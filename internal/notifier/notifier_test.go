@@ -89,7 +89,7 @@ func TestNotifyAccessGranted_SkipsWhenNoFrom(t *testing.T) {
 	n := New(config.SMTPConfig{Host: "localhost", Port: 1025}, nil)
 
 	user := model.UserEntity{Firstname: "Jane", Lastname: "Doe", Email: "jane@test.com"}
-	project := model.Project{Slug: "test", Name: "Test", EmailFrom: "", EmailSubject: "Welcome"}
+	project := model.Project{Slug: "test", Name: "Test", Email: model.ProjectEmail{From: "", Subject: "Welcome"}}
 
 	// Should not panic or attempt to send
 	n.NotifyAccessGranted(user, project)
@@ -99,7 +99,7 @@ func TestNotifyAccessGranted_SkipsWhenNoSubject(t *testing.T) {
 	n := New(config.SMTPConfig{Host: "localhost", Port: 1025}, nil)
 
 	user := model.UserEntity{Firstname: "Jane", Lastname: "Doe", Email: "jane@test.com"}
-	project := model.Project{Slug: "test", Name: "Test", EmailFrom: "noreply@test.com", EmailSubject: ""}
+	project := model.Project{Slug: "test", Name: "Test", Email: model.ProjectEmail{From: "noreply@test.com", Subject: ""}}
 
 	// Should not panic or attempt to send
 	n.NotifyAccessGranted(user, project)

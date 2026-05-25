@@ -73,11 +73,13 @@ func TestDigestScheduler_SkipsBeforeInterval(t *testing.T) {
 	dur := model.Duration(24 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "test",
-			Name:             "Test",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "from@test.com",
+			Slug: "test",
+			Name: "Test",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "from@test.com",
+			},
 		},
 	}
 
@@ -102,11 +104,13 @@ func TestDigestScheduler_SkipsNoActivity(t *testing.T) {
 	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "test",
-			Name:             "Test",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "from@test.com",
+			Slug: "test",
+			Name: "Test",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "from@test.com",
+			},
 		},
 	}
 
@@ -136,12 +140,14 @@ func TestDigestScheduler_SendsOnActivity(t *testing.T) {
 	grantedAt := time.Now().Add(-30 * time.Minute)
 	projects := []model.Project{
 		{
-			Slug:             "test",
-			Name:             "Test Project",
-			DigestRecipients: []string{"admin@test.com", "ops@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "digest@test.com",
-			DigestSubject:    "Test Digest",
+			Slug: "test",
+			Name: "Test Project",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com", "ops@test.com"},
+				Interval:   &dur,
+				From:       "digest@test.com",
+				Subject:    "Test Digest",
+			},
 		},
 	}
 
@@ -192,11 +198,13 @@ func TestDigestScheduler_UpdatesState(t *testing.T) {
 	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "myproject",
-			Name:             "My Project",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "from@test.com",
+			Slug: "myproject",
+			Name: "My Project",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "from@test.com",
+			},
 		},
 	}
 
@@ -233,17 +241,21 @@ func TestDigestScheduler_SkipsProjectWithNoRecipients(t *testing.T) {
 	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "no-digest",
-			Name:             "No Digest",
-			DigestRecipients: nil,
-			DigestInterval:   &dur,
+			Slug: "no-digest",
+			Name: "No Digest",
+			Digest: model.ProjectDigest{
+				Recipients: nil,
+				Interval:   &dur,
+			},
 		},
 		{
-			Slug:             "has-digest",
-			Name:             "Has Digest",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "from@test.com",
+			Slug: "has-digest",
+			Name: "Has Digest",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "from@test.com",
+			},
 		},
 	}
 
@@ -277,12 +289,14 @@ func TestDigestScheduler_FallsBackToEmailFrom(t *testing.T) {
 	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "test",
-			Name:             "Test",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "",
-			EmailFrom:        "noreply@fallback.com",
+			Slug:  "test",
+			Name:  "Test",
+			Email: model.ProjectEmail{From: "noreply@fallback.com"},
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "",
+			},
 		},
 	}
 
@@ -313,12 +327,14 @@ func TestDigestScheduler_DefaultSubjectWhenEmpty(t *testing.T) {
 	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
-			Slug:             "test",
-			Name:             "Cool App",
-			DigestRecipients: []string{"admin@test.com"},
-			DigestInterval:   &dur,
-			DigestFrom:       "from@test.com",
-			DigestSubject:    "",
+			Slug: "test",
+			Name: "Cool App",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Interval:   &dur,
+				From:       "from@test.com",
+				Subject:    "",
+			},
 		},
 	}
 

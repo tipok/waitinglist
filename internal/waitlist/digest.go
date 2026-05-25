@@ -52,7 +52,7 @@ func StartDigest(
 
 	hasAnyRecipients := false
 	for _, p := range projects {
-		if len(p.DigestRecipients) > 0 {
+		if len(p.Digest.Recipients) > 0 {
 			hasAnyRecipients = true
 			break
 		}
@@ -63,13 +63,13 @@ func StartDigest(
 	}
 
 	processProject := func(p model.Project) {
-		if len(p.DigestRecipients) == 0 {
+		if len(p.Digest.Recipients) == 0 {
 			return
 		}
 
 		interval := defaultDigestInterval
-		if p.DigestInterval != nil {
-			interval = time.Duration(*p.DigestInterval)
+		if p.Digest.Interval != nil {
+			interval = time.Duration(*p.Digest.Interval)
 		}
 
 		lastSuccess, err := schedulerRepo.GetLastSuccess(ctx, p.Slug, schedulerKeyDigestLastSuccess)
@@ -132,11 +132,11 @@ func StartDigest(
 			})
 		}
 
-		from := p.DigestFrom
+		from := p.Digest.From
 		if from == "" {
-			from = p.EmailFrom
+			from = p.Email.From
 		}
-		subject := p.DigestSubject
+		subject := p.Digest.Subject
 		if subject == "" {
 			subject = p.Name + " — Activity Digest"
 		}
@@ -151,7 +151,7 @@ func StartDigest(
 			GrantedCount:  len(newGranted),
 		}
 
-		if err := sender.SendDigest(p.DigestRecipients, from, subject, data); err != nil {
+		if err := sender.SendDigest(p.Digest.Recipients, from, subject, data); err != nil {
 			logger.Warn("digest: failed to send digest", "error", err, "project", p.Slug)
 			return
 		}
@@ -165,7 +165,7 @@ func StartDigest(
 			"project", p.Slug,
 			"enlisted", len(newEnlisted),
 			"granted", len(newGranted),
-			"recipients", len(p.DigestRecipients))
+			"recipients", len(p.Digest.Recipients))
 	}
 
 	checkAllProjects := func() {

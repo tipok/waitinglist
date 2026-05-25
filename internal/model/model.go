@@ -55,20 +55,30 @@ var (
 	ErrWaitingListEntryNotFound = errors.New("waiting list entry not found")
 )
 
+// ProjectEmail holds per-project email notification settings.
+type ProjectEmail struct {
+	From    string `json:"from,omitempty"`
+	Subject string `json:"subject,omitempty"`
+}
+
+// ProjectDigest holds per-project digest email settings.
+type ProjectDigest struct {
+	Recipients []string  `json:"recipients,omitempty"`
+	Interval   *Duration `json:"interval,omitempty"`
+	From       string    `json:"from,omitempty"`
+	Subject    string    `json:"subject,omitempty"`
+}
+
 // Project represents a tenant project defined in configuration.
 type Project struct {
-	Slug                  string    `json:"slug"`
-	Name                  string    `json:"name"`
-	EmailFrom             string    `json:"email_from,omitempty"`
-	EmailSubject          string    `json:"email_subject,omitempty"`
-	EntryBatchSize        *int      `json:"entry_batch_size,omitempty"`
-	EntryWindowInterval   *Duration `json:"entry_window_interval,omitempty"`
-	WaitlistCheckInterval *Duration `json:"waitlist_check_interval,omitempty"`
-	SchedulerDisabled     bool      `json:"scheduler_disabled"`
-	DigestRecipients      []string  `json:"digest_recipients,omitempty"`
-	DigestInterval        *Duration `json:"digest_interval,omitempty"`
-	DigestFrom            string    `json:"digest_from,omitempty"`
-	DigestSubject         string    `json:"digest_subject,omitempty"`
+	Slug                  string        `json:"slug"`
+	Name                  string        `json:"name"`
+	Email                 ProjectEmail  `json:"email"`
+	Digest                ProjectDigest `json:"digest"`
+	EntryBatchSize        *int          `json:"entry_batch_size,omitempty"`
+	EntryWindowInterval   *Duration     `json:"entry_window_interval,omitempty"`
+	WaitlistCheckInterval *Duration     `json:"waitlist_check_interval,omitempty"`
+	SchedulerDisabled     bool          `json:"scheduler_disabled"`
 }
 
 // UserEntity represents a user stored in the user_entity table.

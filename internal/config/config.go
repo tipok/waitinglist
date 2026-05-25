@@ -51,19 +51,29 @@ type ProjectsConfig struct {
 	Definitions map[string]ProjectDefinition `koanf:"definitions"`
 }
 
+// ProjectEmailConfig holds per-project email notification settings in config.
+type ProjectEmailConfig struct {
+	From    string `koanf:"from"`
+	Subject string `koanf:"subject"`
+}
+
+// ProjectDigestConfig holds per-project digest email settings in config.
+type ProjectDigestConfig struct {
+	Recipients []string `koanf:"recipients"`
+	Interval   string   `koanf:"interval"`
+	From       string   `koanf:"from"`
+	Subject    string   `koanf:"subject"`
+}
+
 // ProjectDefinition holds per-project metadata and optional scheduler overrides.
 type ProjectDefinition struct {
-	Name                string   `koanf:"name"`
-	HostMapping         string   `koanf:"hostMapping"`
-	EmailFrom           string   `koanf:"emailFrom"`
-	EmailSubject        string   `koanf:"emailSubject"`
-	EntryBatchSize      *int     `koanf:"entryBatchSize"`
-	EntryWindowInterval string   `koanf:"entryWindowInterval"`
-	SchedulerDisabled   bool     `koanf:"schedulerDisabled"`
-	DigestRecipients    []string `koanf:"digestRecipients"`
-	DigestInterval      string   `koanf:"digestInterval"`
-	DigestFrom          string   `koanf:"digestFrom"`
-	DigestSubject       string   `koanf:"digestSubject"`
+	Name                string              `koanf:"name"`
+	HostMapping         string              `koanf:"hostMapping"`
+	Email               ProjectEmailConfig  `koanf:"email"`
+	Digest              ProjectDigestConfig `koanf:"digest"`
+	EntryBatchSize      *int                `koanf:"entryBatchSize"`
+	EntryWindowInterval string              `koanf:"entryWindowInterval"`
+	SchedulerDisabled   bool                `koanf:"schedulerDisabled"`
 }
 
 // Validate checks that all slug references in the config are defined in Definitions.
@@ -102,25 +112,29 @@ func (p ProjectsConfig) Projects() []model.Project {
 	projects := make([]model.Project, 0, len(p.Definitions))
 	for slug, def := range p.Definitions {
 		proj := model.Project{
-			Slug:              slug,
-			Name:              def.Name,
-			EmailFrom:         def.EmailFrom,
-			EmailSubject:      def.EmailSubject,
+			Slug: slug,
+			Name: def.Name,
+			Email: model.ProjectEmail{
+				From:    def.Email.From,
+				Subject: def.Email.Subject,
+			},
+			Digest: model.ProjectDigest{
+				Recipients: def.Digest.Recipients,
+				From:       def.Digest.From,
+				Subject:    def.Digest.Subject,
+			},
 			EntryBatchSize:    def.EntryBatchSize,
 			SchedulerDisabled: def.SchedulerDisabled,
-			DigestRecipients:  def.DigestRecipients,
-			DigestFrom:        def.DigestFrom,
-			DigestSubject:     def.DigestSubject,
 		}
 		if def.EntryWindowInterval != "" {
 			d, _ := time.ParseDuration(def.EntryWindowInterval)
 			dur := model.Duration(d)
 			proj.EntryWindowInterval = &dur
 		}
-		if def.DigestInterval != "" {
-			d, _ := time.ParseDuration(def.DigestInterval)
+		if def.Digest.Interval != "" {
+			d, _ := time.ParseDuration(def.Digest.Interval)
 			dur := model.Duration(d)
-			proj.DigestInterval = &dur
+			proj.Digest.Interval = &dur
 		}
 		projects = append(projects, proj)
 	}

@@ -64,7 +64,12 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
     "defaultSlug": "default",
     "definitions": {
       "default": {"name": "Default"},
-      "acme-corp": {"name": "Acme Corp", "hostMapping": "api.acme.com"}
+      "acme-corp": {
+        "name": "Acme Corp",
+        "hostMapping": "api.acme.com",
+        "email": {"from": "noreply@acme.com", "subject": "Welcome!"},
+        "digest": {"recipients": ["admin@acme.com"], "interval": "24h"}
+      }
     }
   }
 }
@@ -91,9 +96,13 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project, optional). |
 | `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size. |
 | `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window interval. |
-| `projects.definitions.<slug>.emailFrom` | string | — | Sender address for access-granted emails (skip if empty). |
-| `projects.definitions.<slug>.emailSubject` | string | — | Subject line for access-granted emails (skip if empty). |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable the scheduler for this project. |
+| `projects.definitions.<slug>.email.from` | string | — | Sender address for access-granted emails (skip if empty). |
+| `projects.definitions.<slug>.email.subject` | string | — | Subject line for access-granted emails (skip if empty). |
+| `projects.definitions.<slug>.digest.recipients` | []string | — | Email addresses to receive digest (empty = digest disabled). |
+| `projects.definitions.<slug>.digest.interval` | duration | `24h` | How often to send digest emails. |
+| `projects.definitions.<slug>.digest.from` | string | — | Sender address for digest (falls back to `email.from`). |
+| `projects.definitions.<slug>.digest.subject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`). |
 | `smtp.host` | string | — | SMTP server hostname. If empty, email notifications are disabled globally. |
 | `smtp.port` | int | — | SMTP server port (e.g. 587 for STARTTLS, 465 for implicit TLS). |
 | `smtp.username` | string | — | SMTP authentication username. |
@@ -255,7 +264,9 @@ When a per-project value is omitted, the global configuration applies.
         "name": "Acme Corp",
         "hostMapping": "waitlist.acme.com",
         "entryBatchSize": 10,
-        "entryWindowInterval": "24h"
+        "entryWindowInterval": "24h",
+        "email": {"from": "noreply@acme.com", "subject": "You're in!"},
+        "digest": {"recipients": ["ops@acme.com"], "interval": "12h"}
       },
       "other": {
         "name": "Other",

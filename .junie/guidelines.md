@@ -102,13 +102,13 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project) |
 | `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size |
 | `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window |
-| `projects.definitions.<slug>.emailFrom` | string | — | Sender address for access-granted email (skip if empty) |
-| `projects.definitions.<slug>.emailSubject` | string | — | Subject line for access-granted email (skip if empty) |
+| `projects.definitions.<slug>.email.from` | string | — | Sender address for access-granted email (skip if empty) |
+| `projects.definitions.<slug>.email.subject` | string | — | Subject line for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
-| `projects.definitions.<slug>.digestRecipients` | []string | — | Email addresses to receive digest (empty = digest disabled) |
-| `projects.definitions.<slug>.digestInterval` | duration | `24h` | How often to send digest emails |
-| `projects.definitions.<slug>.digestFrom` | string | — | Sender address for digest (falls back to `emailFrom`) |
-| `projects.definitions.<slug>.digestSubject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`) |
+| `projects.definitions.<slug>.digest.recipients` | []string | — | Email addresses to receive digest (empty = digest disabled) |
+| `projects.definitions.<slug>.digest.interval` | duration | `24h` | How often to send digest emails |
+| `projects.definitions.<slug>.digest.from` | string | — | Sender address for digest (falls back to `email.from`) |
+| `projects.definitions.<slug>.digest.subject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`) |
 | `smtp.host` | string | — | SMTP server hostname (empty = notifications disabled) |
 | `smtp.port` | int | — | SMTP server port |
 | `smtp.username` | string | — | SMTP auth username |
@@ -282,6 +282,10 @@ The project includes a `Makefile` with standard targets. After making any code c
 3. **Run tests** — run `make test` to execute the full test suite (`go test ./...`).
 
 > ⚠️ A change is not considered complete until `make format`, `make lint`, and `make test` all pass. Plans must always reference all three commands in their final verification step.
+
+### Documentation
+
+When configuration fields are added, removed, or restructured, `README.md` must be updated to reflect the new state. This includes the JSON example, the Configuration Reference table, the Environment Variables table, and any feature-specific examples that show config snippets.
 
 ### Available Makefile Targets
 

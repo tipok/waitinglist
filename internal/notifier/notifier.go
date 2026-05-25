@@ -63,7 +63,7 @@ func New(cfg config.SMTPConfig, logger *slog.Logger) *SMTPNotifier {
 // NotifyAccessGranted sends an access-granted email to the user. Skips
 // silently if the project has no emailFrom or emailSubject configured.
 func (n *SMTPNotifier) NotifyAccessGranted(user model.UserEntity, project model.Project) {
-	if project.EmailFrom == "" || project.EmailSubject == "" {
+	if project.Email.From == "" || project.Email.Subject == "" {
 		return
 	}
 
@@ -79,9 +79,9 @@ func (n *SMTPNotifier) NotifyAccessGranted(user model.UserEntity, project model.
 		return
 	}
 
-	msg := buildMIMEMessage(project.EmailFrom, user.Email, project.EmailSubject, body.String())
+	msg := buildMIMEMessage(project.Email.From, user.Email, project.Email.Subject, body.String())
 
-	if err := n.send(project.EmailFrom, user.Email, msg); err != nil {
+	if err := n.send(project.Email.From, user.Email, msg); err != nil {
 		n.logger.Warn("notifier: failed to send email",
 			"error", err, "to", user.Email, "project", project.Slug)
 	}
