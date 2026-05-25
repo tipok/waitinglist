@@ -68,7 +68,7 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
         "name": "Acme Corp",
         "hostMapping": "api.acme.com",
         "email": {"from": "noreply@acme.com", "subject": "Welcome!"},
-        "digest": {"recipients": ["admin@acme.com"], "interval": "24h"}
+        "digest": {"recipients": ["admin@acme.com"], "schedule": "0 9 * * *"}
       }
     }
   }
@@ -100,7 +100,7 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | `projects.definitions.<slug>.email.from` | string | — | Sender address for access-granted emails (skip if empty). |
 | `projects.definitions.<slug>.email.subject` | string | — | Subject line for access-granted emails (skip if empty). |
 | `projects.definitions.<slug>.digest.recipients` | []string | — | Email addresses to receive digest (empty = digest disabled). |
-| `projects.definitions.<slug>.digest.interval` | duration | `24h` | How often to send digest emails. |
+| `projects.definitions.<slug>.digest.schedule` | string | — | Cron expression for digest schedule (e.g. `"0 9 * * *"` for daily at 9am). Supports `CRON_TZ=` prefix for timezone. Empty = digest disabled. |
 | `projects.definitions.<slug>.digest.from` | string | — | Sender address for digest (falls back to `email.from`). |
 | `projects.definitions.<slug>.digest.subject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`). |
 | `smtp.host` | string | — | SMTP server hostname. If empty, email notifications are disabled globally. |
@@ -266,7 +266,7 @@ When a per-project value is omitted, the global configuration applies.
         "entryBatchSize": 10,
         "entryWindowInterval": "24h",
         "email": {"from": "noreply@acme.com", "subject": "You're in!"},
-        "digest": {"recipients": ["ops@acme.com"], "interval": "12h"}
+        "digest": {"recipients": ["ops@acme.com"], "schedule": "0 9,17 * * *"}
       },
       "other": {
         "name": "Other",

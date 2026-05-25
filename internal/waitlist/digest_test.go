@@ -2,8 +2,11 @@ package waitlist
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +33,7 @@ func (f *fakeDigestWaitlistStore) GetEnlistedSince(_ context.Context, _ string, 
 }
 
 type fakeDigestSchedulerStore struct {
+	mu            sync.Mutex
 	lastSuccess   time.Time
 	getErr        error
 	updateCalled  bool
@@ -38,10 +42,14 @@ type fakeDigestSchedulerStore struct {
 }
 
 func (f *fakeDigestSchedulerStore) GetLastSuccess(_ context.Context, _ string, _ string) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.lastSuccess, f.getErr
 }
 
 func (f *fakeDigestSchedulerStore) UpdateLastSuccess(_ context.Context, _ model.DBTX, project, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.updateCalled = true
 	f.updateProject = project
 	f.updateKey = key
@@ -49,73 +57,47 @@ func (f *fakeDigestSchedulerStore) UpdateLastSuccess(_ context.Context, _ model.
 }
 
 type fakeDigestSender struct {
+	mu         sync.Mutex
 	called     bool
+	callCount  int
 	recipients []string
 	from       string
 	subject    string
 	data       notifier.DigestData
+	err        error
 }
 
 func (f *fakeDigestSender) SendDigest(recipients []string, from, subject string, data notifier.DigestData) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.called = true
+	f.callCount++
 	f.recipients = recipients
 	f.from = from
 	f.subject = subject
 	f.data = data
-	return nil
+	return f.err
 }
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 }
 
-func TestDigestScheduler_SkipsBeforeInterval(t *testing.T) {
-	dur := model.Duration(24 * time.Hour)
-	projects := []model.Project{
-		{
-			Slug: "test",
-			Name: "Test",
-			Digest: model.ProjectDigest{
-				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
-				From:       "from@test.com",
-			},
-		},
-	}
-
-	scheduler := &fakeDigestSchedulerStore{
-		lastSuccess: time.Now().Add(-1 * time.Hour), // only 1h ago, interval is 24h
-	}
-	sender := &fakeDigestSender{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately so goroutine exits
-
-	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, &fakeDigestWaitlistStore{}, scheduler, nil, sender)
-
-	time.Sleep(50 * time.Millisecond)
-
-	if sender.called {
-		t.Error("expected digest to be skipped when interval hasn't elapsed")
-	}
-}
-
 func TestDigestScheduler_SkipsNoActivity(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
 			Slug: "test",
 			Name: "Test",
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "from@test.com",
 			},
 		},
 	}
 
 	scheduler := &fakeDigestSchedulerStore{
-		lastSuccess: time.Now().Add(-2 * time.Hour), // interval elapsed
+		lastSuccess: time.Now().Add(-2 * time.Hour),
 	}
 	userStore := &fakeDigestUserStore{users: nil}
 	waitlistStore := &fakeDigestWaitlistStore{entries: nil}
@@ -126,7 +108,7 @@ func TestDigestScheduler_SkipsNoActivity(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, userStore, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
 
 	if sender.called {
@@ -135,7 +117,6 @@ func TestDigestScheduler_SkipsNoActivity(t *testing.T) {
 }
 
 func TestDigestScheduler_SendsOnActivity(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	grantedBy := "admin"
 	grantedAt := time.Now().Add(-30 * time.Minute)
 	projects := []model.Project{
@@ -144,7 +125,7 @@ func TestDigestScheduler_SendsOnActivity(t *testing.T) {
 			Name: "Test Project",
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com", "ops@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "digest@test.com",
 				Subject:    "Test Digest",
 			},
@@ -171,8 +152,11 @@ func TestDigestScheduler_SendsOnActivity(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, userStore, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
 
 	if !sender.called {
 		t.Fatal("expected digest to be sent when activity exists")
@@ -195,14 +179,13 @@ func TestDigestScheduler_SendsOnActivity(t *testing.T) {
 }
 
 func TestDigestScheduler_UpdatesState(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
 			Slug: "myproject",
 			Name: "My Project",
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "from@test.com",
 			},
 		},
@@ -223,8 +206,11 @@ func TestDigestScheduler_UpdatesState(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
+
+	scheduler.mu.Lock()
+	defer scheduler.mu.Unlock()
 
 	if !scheduler.updateCalled {
 		t.Fatal("expected scheduler state to be updated")
@@ -238,14 +224,13 @@ func TestDigestScheduler_UpdatesState(t *testing.T) {
 }
 
 func TestDigestScheduler_SkipsProjectWithNoRecipients(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
 			Slug: "no-digest",
 			Name: "No Digest",
 			Digest: model.ProjectDigest{
 				Recipients: nil,
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 			},
 		},
 		{
@@ -253,7 +238,7 @@ func TestDigestScheduler_SkipsProjectWithNoRecipients(t *testing.T) {
 			Name: "Has Digest",
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "from@test.com",
 			},
 		},
@@ -274,8 +259,11 @@ func TestDigestScheduler_SkipsProjectWithNoRecipients(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
 
 	if !sender.called {
 		t.Fatal("expected digest to be sent for the project with recipients")
@@ -286,7 +274,6 @@ func TestDigestScheduler_SkipsProjectWithNoRecipients(t *testing.T) {
 }
 
 func TestDigestScheduler_FallsBackToEmailFrom(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
 			Slug:  "test",
@@ -294,7 +281,7 @@ func TestDigestScheduler_FallsBackToEmailFrom(t *testing.T) {
 			Email: model.ProjectEmail{From: "noreply@fallback.com"},
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "",
 			},
 		},
@@ -315,8 +302,11 @@ func TestDigestScheduler_FallsBackToEmailFrom(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
 
 	if sender.from != "noreply@fallback.com" {
 		t.Errorf("expected fallback from=noreply@fallback.com, got %s", sender.from)
@@ -324,14 +314,13 @@ func TestDigestScheduler_FallsBackToEmailFrom(t *testing.T) {
 }
 
 func TestDigestScheduler_DefaultSubjectWhenEmpty(t *testing.T) {
-	dur := model.Duration(1 * time.Hour)
 	projects := []model.Project{
 		{
 			Slug: "test",
 			Name: "Cool App",
 			Digest: model.ProjectDigest{
 				Recipients: []string{"admin@test.com"},
-				Interval:   &dur,
+				Schedule:   "@every 1s",
 				From:       "from@test.com",
 				Subject:    "",
 			},
@@ -353,11 +342,183 @@ func TestDigestScheduler_DefaultSubjectWhenEmpty(t *testing.T) {
 
 	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, sender)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 	cancel()
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
 
 	expected := "Cool App — Activity Digest"
 	if sender.subject != expected {
 		t.Errorf("expected subject=%q, got %q", expected, sender.subject)
+	}
+}
+
+func TestDigestScheduler_GracefulShutdown(t *testing.T) {
+	projects := []model.Project{
+		{
+			Slug: "test",
+			Name: "Test",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Schedule:   "@every 1s",
+				From:       "from@test.com",
+			},
+		},
+	}
+
+	scheduler := &fakeDigestSchedulerStore{
+		lastSuccess: time.Now().Add(-2 * time.Hour),
+	}
+	waitlistStore := &fakeDigestWaitlistStore{
+		entries: []model.WaitingListAdminRow{
+			{Firstname: "U", Lastname: "X", Email: "u@x.com", CreatedAt: time.Now()},
+		},
+	}
+	sender := &fakeDigestSender{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, sender)
+
+	time.Sleep(1500 * time.Millisecond)
+
+	sender.mu.Lock()
+	countBefore := sender.callCount
+	sender.mu.Unlock()
+
+	cancel()
+	time.Sleep(200 * time.Millisecond)
+
+	// Wait long enough that another tick would have fired
+	time.Sleep(2 * time.Second)
+
+	sender.mu.Lock()
+	countAfter := sender.callCount
+	sender.mu.Unlock()
+
+	if countAfter != countBefore {
+		t.Errorf("expected no more digest calls after shutdown, got %d additional calls", countAfter-countBefore)
+	}
+}
+
+func TestDigestScheduler_ErrorDoesNotStopScheduler(t *testing.T) {
+	var callCount atomic.Int32
+
+	projects := []model.Project{
+		{
+			Slug: "test",
+			Name: "Test",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Schedule:   "@every 1s",
+				From:       "from@test.com",
+			},
+		},
+	}
+
+	scheduler := &fakeDigestSchedulerStore{
+		lastSuccess: time.Now().Add(-2 * time.Hour),
+	}
+	waitlistStore := &fakeDigestWaitlistStore{
+		entries: []model.WaitingListAdminRow{
+			{Firstname: "U", Lastname: "X", Email: "u@x.com", CreatedAt: time.Now()},
+		},
+	}
+	sender := &fakeDigestSender{err: errors.New("smtp connection refused")}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	countingSender := &countingDigestSender{inner: sender, count: &callCount}
+
+	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, waitlistStore, scheduler, nil, countingSender)
+
+	time.Sleep(3500 * time.Millisecond)
+	cancel()
+
+	count := callCount.Load()
+	if count < 2 {
+		t.Errorf("expected at least 2 invocations despite errors, got %d", count)
+	}
+}
+
+type countingDigestSender struct {
+	inner *fakeDigestSender
+	count *atomic.Int32
+}
+
+func (c *countingDigestSender) SendDigest(recipients []string, from, subject string, data notifier.DigestData) error {
+	c.count.Add(1)
+	return c.inner.SendDigest(recipients, from, subject, data)
+}
+
+func TestDigestScheduler_SkipsProjectWithNoSchedule(t *testing.T) {
+	projects := []model.Project{
+		{
+			Slug: "no-schedule",
+			Name: "No Schedule",
+			Digest: model.ProjectDigest{
+				Recipients: []string{"admin@test.com"},
+				Schedule:   "",
+				From:       "from@test.com",
+			},
+		},
+	}
+
+	sender := &fakeDigestSender{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	StartDigest(ctx, testLogger(), projects, &fakeDigestUserStore{}, &fakeDigestWaitlistStore{}, &fakeDigestSchedulerStore{}, nil, sender)
+
+	time.Sleep(50 * time.Millisecond)
+
+	if sender.called {
+		t.Error("expected no digest when schedule is empty")
+	}
+}
+
+func TestProcessDigestProject_Direct(t *testing.T) {
+	grantedBy := "admin"
+	grantedAt := time.Now().Add(-30 * time.Minute)
+
+	p := model.Project{
+		Slug: "direct",
+		Name: "Direct Test",
+		Digest: model.ProjectDigest{
+			Recipients: []string{"admin@test.com"},
+			Schedule:   "0 9 * * *",
+			From:       "digest@test.com",
+			Subject:    "Direct Digest",
+		},
+	}
+
+	scheduler := &fakeDigestSchedulerStore{
+		lastSuccess: time.Now().Add(-2 * time.Hour),
+	}
+	userStore := &fakeDigestUserStore{
+		users: []model.UserEntity{
+			{Firstname: "Carol", Lastname: "W", Email: "carol@test.com", AccessGrantedAt: &grantedAt, AccessGrantedBy: &grantedBy},
+		},
+	}
+	waitlistStore := &fakeDigestWaitlistStore{
+		entries: []model.WaitingListAdminRow{
+			{Firstname: "Alice", Lastname: "S", Email: "alice@test.com", CreatedAt: time.Now().Add(-1 * time.Hour)},
+		},
+	}
+	sender := &fakeDigestSender{}
+
+	processDigestProject(context.Background(), testLogger(), p, userStore, waitlistStore, scheduler, nil, sender)
+
+	if !sender.called {
+		t.Fatal("expected digest to be sent")
+	}
+	if sender.data.EnlistedCount != 1 {
+		t.Errorf("expected 1 enlisted, got %d", sender.data.EnlistedCount)
+	}
+	if sender.data.GrantedCount != 1 {
+		t.Errorf("expected 1 granted, got %d", sender.data.GrantedCount)
 	}
 }

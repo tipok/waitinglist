@@ -63,10 +63,10 @@ type ProjectEmail struct {
 
 // ProjectDigest holds per-project digest email settings.
 type ProjectDigest struct {
-	Recipients []string  `json:"recipients,omitempty"`
-	Interval   *Duration `json:"interval,omitempty"`
-	From       string    `json:"from,omitempty"`
-	Subject    string    `json:"subject,omitempty"`
+	Recipients []string `json:"recipients,omitempty"`
+	Schedule   string   `json:"schedule,omitempty"`
+	From       string   `json:"from,omitempty"`
+	Subject    string   `json:"subject,omitempty"`
 }
 
 // Project represents a tenant project defined in configuration.

@@ -106,7 +106,7 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `projects.definitions.<slug>.email.subject` | string | — | Subject line for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
 | `projects.definitions.<slug>.digest.recipients` | []string | — | Email addresses to receive digest (empty = digest disabled) |
-| `projects.definitions.<slug>.digest.interval` | duration | `24h` | How often to send digest emails |
+| `projects.definitions.<slug>.digest.schedule` | string | — | Cron expression for digest schedule (e.g. `"0 9 * * *"`). Supports `CRON_TZ=` prefix. Empty = digest disabled |
 | `projects.definitions.<slug>.digest.from` | string | — | Sender address for digest (falls back to `email.from`) |
 | `projects.definitions.<slug>.digest.subject` | string | — | Subject for digest (falls back to `<ProjectName> — Activity Digest`) |
 | `smtp.host` | string | — | SMTP server hostname (empty = notifications disabled) |

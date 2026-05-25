@@ -10,6 +10,7 @@ import (
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+	"github.com/robfig/cron/v3"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
@@ -60,7 +61,7 @@ type ProjectEmailConfig struct {
 // ProjectDigestConfig holds per-project digest email settings in config.
 type ProjectDigestConfig struct {
 	Recipients []string `koanf:"recipients"`
-	Interval   string   `koanf:"interval"`
+	Schedule   string   `koanf:"schedule"`
 	From       string   `koanf:"from"`
 	Subject    string   `koanf:"subject"`
 }
@@ -85,12 +86,18 @@ func (p ProjectsConfig) Validate() error {
 		return fmt.Errorf("projects.defaultSlug %q not found in definitions", p.DefaultSlug)
 	}
 	seen := make(map[string]string)
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 	for slug, def := range p.Definitions {
 		if def.HostMapping != "" {
 			if other, exists := seen[def.HostMapping]; exists {
 				return fmt.Errorf("duplicate hostMapping %q in definitions %q and %q", def.HostMapping, other, slug)
 			}
 			seen[def.HostMapping] = slug
+		}
+		if len(def.Digest.Recipients) > 0 && def.Digest.Schedule != "" {
+			if _, err := parser.Parse(def.Digest.Schedule); err != nil {
+				return fmt.Errorf("projects.definitions[%q].digest.schedule: invalid cron expression %q: %w", slug, def.Digest.Schedule, err)
+			}
 		}
 	}
 	return nil
@@ -120,6 +127,7 @@ func (p ProjectsConfig) Projects() []model.Project {
 			},
 			Digest: model.ProjectDigest{
 				Recipients: def.Digest.Recipients,
+				Schedule:   def.Digest.Schedule,
 				From:       def.Digest.From,
 				Subject:    def.Digest.Subject,
 			},
@@ -130,11 +138,6 @@ func (p ProjectsConfig) Projects() []model.Project {
 			d, _ := time.ParseDuration(def.EntryWindowInterval)
 			dur := model.Duration(d)
 			proj.EntryWindowInterval = &dur
-		}
-		if def.Digest.Interval != "" {
-			d, _ := time.ParseDuration(def.Digest.Interval)
-			dur := model.Duration(d)
-			proj.Digest.Interval = &dur
 		}
 		projects = append(projects, proj)
 	}
