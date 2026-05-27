@@ -1,4 +1,4 @@
-create table public.user_entity
+CREATE TABLE IF NOT EXISTS public.user_entity
 (
     id                   uuid      default gen_random_uuid() not null
         primary key,
@@ -20,19 +20,16 @@ create table public.user_entity
         check ((access_revoked_at IS NULL) = (access_revoke_reason IS NULL))
 );
 
-alter table public.user_entity
-    owner to brain;
+CREATE INDEX IF NOT EXISTS idx_user_entity_created_at
+    ON public.user_entity (created_at);
 
-create index idx_user_entity_created_at
-    on public.user_entity (created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_entity_project_slug_email
+    ON public.user_entity (project_slug, email);
 
-create unique index uq_user_entity_project_slug_email
-    on public.user_entity (project_slug, email);
+CREATE INDEX IF NOT EXISTS idx_user_entity_project_slug_access
+    ON public.user_entity (project_slug, has_access);
 
-create index idx_user_entity_project_slug_access
-    on public.user_entity (project_slug, has_access);
-
-create table public.waiting_list
+CREATE TABLE IF NOT EXISTS public.waiting_list
 (
     id                  uuid      default gen_random_uuid() not null
         primary key,
@@ -45,28 +42,21 @@ create table public.waiting_list
     weighted_created_at timestamp generated always as ((created_at - ('01:00:00'::interval * (weight)::double precision))) stored,
     project_slug        text                                not null
 )
-    with (fillfactor = 70, autovacuum_vacuum_scale_factor = 0.05, autovacuum_vacuum_threshold = 50, autovacuum_analyze_scale_factor = 0.05, autovacuum_analyze_threshold = 50);
+    WITH (fillfactor = 70, autovacuum_vacuum_scale_factor = 0.05, autovacuum_vacuum_threshold = 50, autovacuum_analyze_scale_factor = 0.05, autovacuum_analyze_threshold = 50);
 
-alter table public.waiting_list
-    owner to brain;
+CREATE INDEX IF NOT EXISTS idx_waiting_list_weighted_created_at
+    ON public.waiting_list (weighted_created_at);
 
-create index idx_waiting_list_weighted_created_at
-    on public.waiting_list (weighted_created_at);
+CREATE INDEX IF NOT EXISTS idx_waiting_list_user_id
+    ON public.waiting_list (user_id);
 
-create index idx_waiting_list_user_id
-    on public.waiting_list (user_id);
+CREATE INDEX IF NOT EXISTS idx_waiting_list_project_slug_weighted
+    ON public.waiting_list (project_slug, weighted_created_at);
 
-create index idx_waiting_list_project_slug_weighted
-    on public.waiting_list (project_slug, weighted_created_at);
-
-create table public.scheduler_state
+CREATE TABLE IF NOT EXISTS public.scheduler_state
 (
     key          varchar(100)            not null,
     value        timestamp default now() not null,
     project_slug text                    not null,
     primary key (project_slug, key)
 );
-
-alter table public.scheduler_state
-    owner to brain;
-
