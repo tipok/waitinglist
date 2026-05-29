@@ -118,6 +118,7 @@ func processDigestProject(
 	}
 
 	if len(enlisted) == 0 && len(granted) == 0 {
+		logger.Info("digest: no activity, skipping", "project", p.Slug, "since", since)
 		return
 	}
 
