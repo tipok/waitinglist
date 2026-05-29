@@ -133,6 +133,40 @@ func (r *WaitingListRepository) GetEnlistedSince(ctx context.Context, projectSlu
 	return out, rows.Err()
 }
 
+// ListAllJoined returns all waiting-list entries joined with user data for the
+// given project, with no pagination limit.
+//
+//goland:noinspection ALL
+func (r *WaitingListRepository) ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error) {
+	//goland:noinspection ALL
+	const query = `
+		SELECT wl.id, wl.project_slug, wl.user_id, ue.email, ue.firstname, ue.lastname,
+		       wl.weight, wl.created_at, wl.weighted_created_at
+		FROM   waiting_list wl
+		JOIN   user_entity  ue ON ue.id = wl.user_id
+		WHERE  wl.project_slug = $1
+		ORDER  BY wl.weighted_created_at ASC, ue.email ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, projectSlug)
+	if err != nil {
+		return nil, fmt.Errorf("listing all waiting list joined: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []model.WaitingListAdminRow
+	for rows.Next() {
+		var row model.WaitingListAdminRow
+		if err := rows.Scan(
+			&row.EntryID, &row.ProjectSlug, &row.UserID, &row.Email, &row.Firstname, &row.Lastname,
+			&row.Weight, &row.CreatedAt, &row.WeightedCreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scanning waiting list joined row: %w", err)
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 // DeleteByIDs deletes waiting list entries with the given IDs.
 // Returns nil without executing a query if the slice is empty.
 //

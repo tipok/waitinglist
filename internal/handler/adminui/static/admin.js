@@ -20,6 +20,7 @@ async function init() {
 
   document.getElementById("dashboard-days").addEventListener("change", loadDashboard);
   document.getElementById("dashboard-refresh").addEventListener("click", loadDashboard);
+  document.getElementById("send-digest-btn").addEventListener("click", promptSendDigest);
 
   bindList("access",   loadAccess);
   bindList("waitlist", loadWaitlist);
@@ -53,6 +54,7 @@ async function loadProjectFilter() {
       state.project = select.value;
       state.access.offset = 0;
       state.waitlist.offset = 0;
+      updateDigestButton();
       refreshCurrentTab();
     });
   } catch (err) {
@@ -132,6 +134,33 @@ async function loadDashboard() {
   } catch (err) {
     showError(`Dashboard failed: ${err.message}`);
   }
+}
+
+function updateDigestButton() {
+  document.getElementById("send-digest-btn").disabled = !state.project;
+}
+
+function promptSendDigest() {
+  if (!state.project) return;
+  const proj = document.getElementById("project-filter");
+  const projectLabel = proj.options[proj.selectedIndex].textContent;
+  openModal({
+    title:        "Send full-state digest?",
+    body:         `This will send a digest with ALL current waitlist entries and users with access for ${projectLabel} to all configured recipients.`,
+    requireReason: false,
+    onConfirm:    async () => {
+      const data = await apiFetch("POST", `/admin/digest/send?project=${encodeURIComponent(state.project)}`);
+      closeModal();
+      showSuccess(`Digest sent to ${data.sent_to} recipient(s).`);
+    },
+  });
+}
+
+function showSuccess(msg) {
+  const banner = document.getElementById("banner");
+  banner.textContent = msg;
+  banner.className = "banner banner-success";
+  setTimeout(() => { banner.className = "banner hidden"; }, 5000);
 }
 
 function renderChart(svg, data) {

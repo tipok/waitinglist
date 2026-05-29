@@ -13,15 +13,17 @@ import (
 	"time"
 
 	"github.com/tipok/waitinglist/internal/model"
+	"github.com/tipok/waitinglist/internal/notifier"
 )
 
 type fakeAdminUserStore struct {
-	countByAccessFn    func(ctx context.Context, projectID string) (int, int, error)
-	enlistmentsByDayFn func(ctx context.Context, projectID string, days int) ([]model.DayCount, error)
-	listWithAccessFn   func(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error)
-	getByIDFn          func(ctx context.Context, id string) (*model.UserEntity, error)
-	grantAccessTxFn    func(ctx context.Context, tx model.DBTX, ids []string, source string) error
-	revokeAccessFn     func(ctx context.Context, id, reason, by string) error
+	countByAccessFn     func(ctx context.Context, projectID string) (int, int, error)
+	enlistmentsByDayFn  func(ctx context.Context, projectID string, days int) ([]model.DayCount, error)
+	listWithAccessFn    func(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	listAllWithAccessFn func(ctx context.Context, projectSlug string) ([]model.UserEntity, error)
+	getByIDFn           func(ctx context.Context, id string) (*model.UserEntity, error)
+	grantAccessTxFn     func(ctx context.Context, tx model.DBTX, ids []string, source string) error
+	revokeAccessFn      func(ctx context.Context, id, reason, by string) error
 }
 
 func (f *fakeAdminUserStore) CountByAccess(ctx context.Context, projectID string) (int, int, error) {
@@ -32,6 +34,12 @@ func (f *fakeAdminUserStore) EnlistmentsByDay(ctx context.Context, projectID str
 }
 func (f *fakeAdminUserStore) ListWithAccess(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.UserEntity, error) {
 	return f.listWithAccessFn(ctx, projectID, emailLike, limit, offset)
+}
+func (f *fakeAdminUserStore) ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error) {
+	if f.listAllWithAccessFn != nil {
+		return f.listAllWithAccessFn(ctx, projectSlug)
+	}
+	return nil, nil
 }
 func (f *fakeAdminUserStore) GetByID(ctx context.Context, id string) (*model.UserEntity, error) {
 	return f.getByIDFn(ctx, id)
@@ -45,6 +53,7 @@ func (f *fakeAdminUserStore) RevokeAccess(ctx context.Context, id, reason, by st
 
 type fakeAdminWaitlistStore struct {
 	listJoinedFn       func(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	listAllJoinedFn    func(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error)
 	deleteByIDFn       func(ctx context.Context, id string) error
 	deleteByUserIDTxFn func(ctx context.Context, tx model.DBTX, userID string) error
 	beginTxFn          func(ctx context.Context) (model.Tx, error)
@@ -52,6 +61,12 @@ type fakeAdminWaitlistStore struct {
 
 func (f *fakeAdminWaitlistStore) ListJoined(ctx context.Context, projectID, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error) {
 	return f.listJoinedFn(ctx, projectID, emailLike, limit, offset)
+}
+func (f *fakeAdminWaitlistStore) ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error) {
+	if f.listAllJoinedFn != nil {
+		return f.listAllJoinedFn(ctx, projectSlug)
+	}
+	return nil, nil
 }
 func (f *fakeAdminWaitlistStore) DeleteByID(ctx context.Context, id string) error {
 	return f.deleteByIDFn(ctx, id)
@@ -66,7 +81,7 @@ func (f *fakeAdminWaitlistStore) BeginTx(ctx context.Context) (model.Tx, error) 
 func newTestAdminHandler(us AdminUserStore, ws AdminWaitingListStore) (*AdminHandler, *http.ServeMux) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	projects := []model.Project{{Slug: "default", Name: "Default"}}
-	h := NewAdminHandler(us, ws, projects, logger, nil)
+	h := NewAdminHandler(us, ws, projects, logger, nil, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	return h, mux
@@ -477,7 +492,7 @@ func TestAdmin_ListProjects_HappyPath(t *testing.T) {
 		{Slug: "alpha", Name: "Alpha Project"},
 		{Slug: "beta", Name: "Beta Project"},
 	}
-	h := NewAdminHandler(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, logger, nil)
+	h := NewAdminHandler(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, logger, nil, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -495,5 +510,170 @@ func TestAdmin_ListProjects_HappyPath(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(got))
+	}
+}
+
+// --- Send Digest tests -------------------------------------------------------
+
+type fakeDigestSender struct {
+	called     bool
+	recipients []string
+	data       notifier.DigestData
+	err        error
+}
+
+func (f *fakeDigestSender) SendDigest(recipients []string, _, _ string, data notifier.DigestData) error {
+	f.called = true
+	f.recipients = recipients
+	f.data = data
+	return f.err
+}
+
+func newTestAdminHandlerWithDigest(us AdminUserStore, ws AdminWaitingListStore, projects []model.Project, sender AdminDigestSender) (*AdminHandler, *http.ServeMux) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := NewAdminHandler(us, ws, projects, logger, nil, sender)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	return h, mux
+}
+
+func TestAdmin_SendDigest_Success(t *testing.T) {
+	sender := &fakeDigestSender{}
+	projects := []model.Project{{
+		Slug: "default",
+		Name: "Default",
+		Digest: model.ProjectDigest{
+			Recipients: []string{"admin@test.com", "ops@test.com"},
+			From:       "digest@test.com",
+			Subject:    "Test Digest",
+		},
+	}}
+	us := &fakeAdminUserStore{
+		listAllWithAccessFn: func(_ context.Context, slug string) ([]model.UserEntity, error) {
+			return []model.UserEntity{{ID: "u1", Email: "alice@test.com", HasAccess: true}}, nil
+		},
+	}
+	ws := &fakeAdminWaitlistStore{
+		listAllJoinedFn: func(_ context.Context, slug string) ([]model.WaitingListAdminRow, error) {
+			return []model.WaitingListAdminRow{{EntryID: "wl1", Email: "bob@test.com", CreatedAt: time.Now()}}, nil
+		},
+	}
+	_, mux := newTestAdminHandlerWithDigest(us, ws, projects, sender)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send?project=default", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !sender.called {
+		t.Fatal("expected SendDigest called")
+	}
+	if len(sender.recipients) != 2 {
+		t.Errorf("expected 2 recipients, got %d", len(sender.recipients))
+	}
+	if sender.data.EnlistedCount != 1 || sender.data.GrantedCount != 1 {
+		t.Errorf("unexpected data: enlisted=%d granted=%d", sender.data.EnlistedCount, sender.data.GrantedCount)
+	}
+	if sender.data.PeriodStart != "Full state" {
+		t.Errorf("expected PeriodStart='Full state', got %q", sender.data.PeriodStart)
+	}
+
+	var resp sendDigestResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.SentTo != 2 {
+		t.Errorf("expected sent_to=2, got %d", resp.SentTo)
+	}
+}
+
+func TestAdmin_SendDigest_NoProject(t *testing.T) {
+	sender := &fakeDigestSender{}
+	projects := []model.Project{{Slug: "default", Name: "Default", Digest: model.ProjectDigest{Recipients: []string{"a@b.c"}}}}
+	_, mux := newTestAdminHandlerWithDigest(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, sender)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if sender.called {
+		t.Error("SendDigest should not be called when project is missing")
+	}
+}
+
+func TestAdmin_SendDigest_NoDigestConfig(t *testing.T) {
+	sender := &fakeDigestSender{}
+	projects := []model.Project{{Slug: "default", Name: "Default"}}
+	_, mux := newTestAdminHandlerWithDigest(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, sender)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send?project=default", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if sender.called {
+		t.Error("SendDigest should not be called when no recipients configured")
+	}
+}
+
+func TestAdmin_SendDigest_NoSender(t *testing.T) {
+	projects := []model.Project{{Slug: "default", Name: "Default", Digest: model.ProjectDigest{Recipients: []string{"a@b.c"}}}}
+	_, mux := newTestAdminHandlerWithDigest(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send?project=default", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdmin_SendDigest_UnknownProject(t *testing.T) {
+	sender := &fakeDigestSender{}
+	projects := []model.Project{{Slug: "default", Name: "Default"}}
+	_, mux := newTestAdminHandlerWithDigest(&fakeAdminUserStore{}, &fakeAdminWaitlistStore{}, projects, sender)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send?project=nonexistent", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdmin_SendDigest_SendError(t *testing.T) {
+	sender := &fakeDigestSender{err: errors.New("smtp down")}
+	projects := []model.Project{{
+		Slug:   "default",
+		Name:   "Default",
+		Digest: model.ProjectDigest{Recipients: []string{"a@b.c"}},
+	}}
+	us := &fakeAdminUserStore{
+		listAllWithAccessFn: func(_ context.Context, _ string) ([]model.UserEntity, error) {
+			return nil, nil
+		},
+	}
+	ws := &fakeAdminWaitlistStore{
+		listAllJoinedFn: func(_ context.Context, _ string) ([]model.WaitingListAdminRow, error) {
+			return nil, nil
+		},
+	}
+	_, mux := newTestAdminHandlerWithDigest(us, ws, projects, sender)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/digest/send?project=default", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
 	}
 }

@@ -164,6 +164,7 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 | `POST` | `/admin/users/{id}/revoke-access` | **Admin · Basic Auth.** Body `{"reason":"…"}` (1..500 chars). Calls `RevokeAccess` with the authenticated admin as `revoked_by`. |
 | `DELETE` | `/admin/waitlist/{id}` | **Admin · Basic Auth.** Removes a single waiting-list row by entry id. |
 | `GET`  | `/admin/projects` | **Admin · Basic Auth.** List all projects (from configuration). |
+| `POST` | `/admin/digest/send` | **Admin · Basic Auth.** Send a full-state digest email for `?project=<slug>`. Returns `{"sent_to": N}`. Returns 400 if project has no digest config or SMTP is unconfigured. Does NOT update scheduler state. |
 | `GET`  | `/admin/` (and `/admin/{asset}`) | **Admin · Basic Auth.** Embedded HTML/CSS/JS admin SPA (dashboard + lists + actions). Served from `embed.FS` in `internal/handler/adminui/`. |
 
 > **Note:** `GET /admin/dashboard`, `GET /admin/users/access`, and `GET /admin/users/waitlist` accept an optional `?project=<slug>` query parameter to scope results to a specific project.
@@ -258,6 +259,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `25-inline-host-mapping` | ✅ Complete | Move `hostMapping` from top-level map into per-project definitions |
 | `26-smtp-notifications` | ✅ Complete | SMTP email notifications on access grant (per-project from/subject, embedded HTML template) |
 | `27-admin-digest-email` | ✅ Complete | Periodic admin digest email summarizing new waitlist entries and access grants per project |
+| `28-admin-send-digest-now` | ✅ Complete | Admin "Send Digest Now" button: full-state snapshot digest via `POST /admin/digest/send` |
 
 ## Development Workflow
 

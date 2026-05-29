@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tipok/waitinglist/internal/model"
 	"github.com/tipok/waitinglist/internal/notifier"
@@ -29,6 +30,7 @@ type AdminUserStore interface {
 	CountByAccess(ctx context.Context, projectSlug string) (waitListCount int, withAccessCount int, err error)
 	EnlistmentsByDay(ctx context.Context, projectSlug string, days int) ([]model.DayCount, error)
 	ListWithAccess(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error)
 	GetByID(ctx context.Context, id string) (*model.UserEntity, error)
 	// GrantAccessTx is called inside the grant transaction (alongside
 	// AdminWaitingListStore.DeleteByUserIDTx) so the two writes are atomic.
@@ -41,9 +43,16 @@ type AdminUserStore interface {
 // admin handler.
 type AdminWaitingListStore interface {
 	ListJoined(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error)
 	DeleteByID(ctx context.Context, id string) error
 	DeleteByUserIDTx(ctx context.Context, tx model.DBTX, userID string) error
 	BeginTx(ctx context.Context) (model.Tx, error)
+}
+
+// AdminDigestSender abstracts SendDigest so the admin handler can trigger
+// a manual digest without depending on *notifier.SMTPNotifier directly.
+type AdminDigestSender interface {
+	SendDigest(recipients []string, from, subject string, data notifier.DigestData) error
 }
 
 // AdminHandler serves the /admin/* JSON endpoints. The caller is responsible
@@ -54,11 +63,12 @@ type AdminHandler struct {
 	projects      []model.Project
 	logger        *slog.Logger
 	emailNotifier notifier.Notifier
+	digestSender  AdminDigestSender
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projects []model.Project, logger *slog.Logger, emailNotifier notifier.Notifier) *AdminHandler {
-	return &AdminHandler{userStore: userStore, wlStore: wlStore, projects: projects, logger: logger, emailNotifier: emailNotifier}
+func NewAdminHandler(userStore AdminUserStore, wlStore AdminWaitingListStore, projects []model.Project, logger *slog.Logger, emailNotifier notifier.Notifier, digestSender AdminDigestSender) *AdminHandler {
+	return &AdminHandler{userStore: userStore, wlStore: wlStore, projects: projects, logger: logger, emailNotifier: emailNotifier, digestSender: digestSender}
 }
 
 // RegisterRoutes registers the admin routes on the given mux. Wrap the mux
@@ -71,6 +81,7 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/users/{id}/revoke-access", h.handleRevoke)
 	mux.HandleFunc("DELETE /admin/waitlist/{id}", h.handleDeleteWaitlist)
 	mux.HandleFunc("GET /admin/projects", h.handleListProjects)
+	mux.HandleFunc("POST /admin/digest/send", h.handleSendDigest)
 }
 
 type dashboardResponse struct {
@@ -354,6 +365,111 @@ func (h *AdminHandler) resolveProjectFilter(r *http.Request, w http.ResponseWrit
 
 func (h *AdminHandler) handleListProjects(w http.ResponseWriter, _ *http.Request) {
 	WriteJSON(w, http.StatusOK, h.projects, h.logger)
+}
+
+type sendDigestResponse struct {
+	SentTo int `json:"sent_to"`
+}
+
+func (h *AdminHandler) handleSendDigest(w http.ResponseWriter, r *http.Request) {
+	if h.digestSender == nil {
+		WriteError(w, http.StatusBadRequest, "SMTP not configured", h.logger)
+		return
+	}
+
+	slug := strings.TrimSpace(r.URL.Query().Get("project"))
+	if slug == "" {
+		WriteError(w, http.StatusBadRequest, "project query parameter is required", h.logger)
+		return
+	}
+
+	proj := h.findProject(slug)
+	if proj == nil {
+		WriteError(w, http.StatusBadRequest, "unknown project", h.logger)
+		return
+	}
+
+	if len(proj.Digest.Recipients) == 0 {
+		WriteError(w, http.StatusBadRequest, "digest not configured for project", h.logger)
+		return
+	}
+
+	ctx := r.Context()
+
+	allAccess, err := h.userStore.ListAllWithAccess(ctx, slug)
+	if err != nil {
+		h.logger.Error("admin send-digest: list access failed", "error", err)
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		return
+	}
+
+	allWaitlist, err := h.wlStore.ListAllJoined(ctx, slug)
+	if err != nil {
+		h.logger.Error("admin send-digest: list waitlist failed", "error", err)
+		WriteError(w, http.StatusInternalServerError, "internal server error", h.logger)
+		return
+	}
+
+	enlisted := make([]notifier.EnlistedEntry, 0, len(allWaitlist))
+	for _, e := range allWaitlist {
+		enlisted = append(enlisted, notifier.EnlistedEntry{
+			Firstname: e.Firstname,
+			Lastname:  e.Lastname,
+			Email:     e.Email,
+			JoinedAt:  notifier.FormatDigestTime(e.CreatedAt),
+		})
+	}
+
+	granted := make([]notifier.GrantedEntry, 0, len(allAccess))
+	for _, u := range allAccess {
+		grantedBy := ""
+		if u.AccessGrantedBy != nil {
+			grantedBy = *u.AccessGrantedBy
+		}
+		grantedAt := ""
+		if u.AccessGrantedAt != nil {
+			grantedAt = notifier.FormatDigestTime(*u.AccessGrantedAt)
+		}
+		granted = append(granted, notifier.GrantedEntry{
+			Firstname: u.Firstname,
+			Lastname:  u.Lastname,
+			Email:     u.Email,
+			GrantedAt: grantedAt,
+			GrantedBy: grantedBy,
+		})
+	}
+
+	from := proj.Digest.From
+	if from == "" {
+		from = proj.Email.From
+	}
+	subject := proj.Digest.Subject
+	if subject == "" {
+		subject = proj.Name + " — Full State Digest"
+	}
+
+	data := notifier.DigestData{
+		ProjectName:   proj.Name,
+		PeriodStart:   "Full state",
+		PeriodEnd:     notifier.FormatDigestTime(time.Now()),
+		NewEnlisted:   enlisted,
+		NewGranted:    granted,
+		EnlistedCount: len(enlisted),
+		GrantedCount:  len(granted),
+	}
+
+	if err := h.digestSender.SendDigest(proj.Digest.Recipients, from, subject, data); err != nil {
+		h.logger.Error("admin send-digest: send failed", "error", err)
+		WriteError(w, http.StatusInternalServerError, "failed to send digest", h.logger)
+		return
+	}
+
+	h.logger.Info("admin send-digest: sent",
+		"admin_user", AdminUserFromContext(r.Context()),
+		"project", slug,
+		"recipients", len(proj.Digest.Recipients))
+
+	WriteJSON(w, http.StatusOK, sendDigestResponse{SentTo: len(proj.Digest.Recipients)}, h.logger)
 }
 
 func (h *AdminHandler) findProject(slug string) *model.Project {

@@ -97,6 +97,12 @@ main {
   margin: 16px 32px 0;
 }
 
+.banner-success {
+  background: #def7e9;
+  color: var(--success);
+  border: 1px solid #b8e6c8;
+}
+
 .hidden { display: none !important; }
 
 /* Dashboard counters */

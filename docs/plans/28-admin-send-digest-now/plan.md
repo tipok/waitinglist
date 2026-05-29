@@ -1,6 +1,6 @@
 # 28 — Admin "Send Digest Now" Button (Full-State Digest)
 
-> **Status:** Draft
+> **Status:** ✅ Complete
 
 ## Overview
 
@@ -107,13 +107,13 @@ The button enables when a project is selected in the project filter dropdown.
 
 ## Implementation Steps
 
-### Step 1: Add repository methods for full-state queries
+### Step 1: Add repository methods for full-state queries ✅
 - **File:** `internal/repository/user.go`
 - Add `ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error)` — SELECT all users where `has_access = true AND project_slug = $slug`, no limit.
 - **File:** `internal/repository/waitinglist.go`
 - Add `ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error)` — SELECT all waitlist entries joined with user data for the project, no limit.
 
-### Step 2: Add handler interface and endpoint
+### Step 2: Add handler interface and endpoint ✅
 - **File:** `internal/handler/admin.go`
 - Extend `AdminHandler` to accept a `DigestSender` (the `waitlist.DigestSender` interface, or define a local equivalent).
 - Add `handleSendDigest(w, r)` method.
@@ -121,11 +121,11 @@ The button enables when a project is selected in the project filter dropdown.
 - Validate: project param required, project has `Digest.Recipients` configured, sender is non-nil.
 - Query full state, build `DigestData`, call `SendDigest`, return `{"sent_to": N}`.
 
-### Step 3: Wire digest sender into AdminHandler
+### Step 3: Wire digest sender into AdminHandler ✅
 - **File:** `cmd/server/main.go`
 - Pass the `*notifier.SMTPNotifier` (or the `DigestSender` interface) to `NewAdminHandler`.
 
-### Step 4: Add UI button and logic
+### Step 4: Add UI button and logic ✅
 - **File:** `internal/handler/adminui/static/index.html`
 - Add "Send Digest Now" button in the dashboard controls section.
 - **File:** `internal/handler/adminui/static/admin.js`
@@ -134,7 +134,7 @@ The button enables when a project is selected in the project filter dropdown.
 - Show confirmation modal before sending.
 - Show success/error via banner.
 
-### Step 5: Add tests
+### Step 5: Add tests ✅
 - **File:** `internal/handler/admin_test.go`
   - Test `POST /admin/digest/send?project=default` succeeds with valid config.
   - Test returns 400 when no project is specified.
@@ -146,12 +146,12 @@ The button enables when a project is selected in the project filter dropdown.
 - **File:** `internal/repository/waitinglist_test.go`
   - Test `ListAllJoined` returns all entries for the project.
 
-### Step 6: Update documentation
+### Step 6: Update documentation ✅
 - **File:** `CLAUDE.md`
 - Add `POST /admin/digest/send` to the HTTP Endpoints table.
 - Update plan 28 status.
 
-### Step 7: Verify
+### Step 7: Verify ✅
 - Run `make format && make lint && make test` — all must pass.
 - Manual test: run dev server, open admin UI, select a project, click "Send Digest Now", verify email arrives in MailPit.
 
@@ -184,15 +184,15 @@ The button enables when a project is selected in the project filter dropdown.
 
 ## Acceptance Criteria
 
-- [ ] `POST /admin/digest/send?project=<slug>` endpoint exists and is protected by Basic Auth.
-- [ ] Endpoint sends a digest containing the full current state (all waitlist + all access users).
-- [ ] Endpoint does NOT update `scheduler_state.digest_last_success`.
-- [ ] Endpoint returns `{"sent_to": N}` on success.
-- [ ] Endpoint returns 400 with clear error when project has no digest config or SMTP is unconfigured.
-- [ ] Admin UI has a "Send Digest Now" button on the Dashboard tab.
-- [ ] Button is disabled when no project is selected.
-- [ ] Button shows a confirmation modal before sending.
-- [ ] Success/error feedback is shown via the existing banner.
-- [ ] `ListAllWithAccess` and `ListAllJoined` repository methods exist and are tested.
-- [ ] Handler tests cover success, missing project, missing config, and nil sender cases.
-- [ ] `make format`, `make lint`, `make test` all pass.
+- [x] `POST /admin/digest/send?project=<slug>` endpoint exists and is protected by Basic Auth.
+- [x] Endpoint sends a digest containing the full current state (all waitlist + all access users).
+- [x] Endpoint does NOT update `scheduler_state.digest_last_success`.
+- [x] Endpoint returns `{"sent_to": N}` on success.
+- [x] Endpoint returns 400 with clear error when project has no digest config or SMTP is unconfigured.
+- [x] Admin UI has a "Send Digest Now" button on the Dashboard tab.
+- [x] Button is disabled when no project is selected.
+- [x] Button shows a confirmation modal before sending.
+- [x] Success/error feedback is shown via the existing banner.
+- [x] `ListAllWithAccess` and `ListAllJoined` repository methods exist and are tested.
+- [x] Handler tests cover success, missing project, missing config, and nil sender cases.
+- [x] `make format`, `make lint`, `make test` all pass.

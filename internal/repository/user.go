@@ -408,6 +408,39 @@ func (r *UserRepository) ListWithAccess(ctx context.Context, projectSlug, emailL
 	return users, nil
 }
 
+// ListAllWithAccess returns all users with has_access = true for the given
+// project, with no pagination limit.
+//
+//goland:noinspection ALL
+func (r *UserRepository) ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error) {
+	//goland:noinspection ALL
+	query := `SELECT ` + userSelectColumns + `
+		FROM   user_entity
+		WHERE  has_access = TRUE AND project_slug = $1
+		ORDER  BY access_granted_at DESC NULLS LAST, email ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, projectSlug)
+	if err != nil {
+		return nil, fmt.Errorf("listing all users with access: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var users []model.UserEntity
+	for rows.Next() {
+		var u model.UserEntity
+		if err := rows.Scan(
+			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
+			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
+			&u.AccessGrantedAt, &u.AccessGrantedBy,
+			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
+		); err != nil {
+			return nil, fmt.Errorf("scanning user with access: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // GetGrantedSince returns users whose access was granted after the given
 // timestamp, scoped to a project.
 //

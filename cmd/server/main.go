@@ -118,7 +118,11 @@ func main() {
 	if adminUser == "" || len(adminHash) == 0 {
 		logger.Warn("admin basic auth not configured; /admin routes disabled")
 	} else {
-		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projects, logger, emailNotifier)
+		var digestSender handler.AdminDigestSender
+		if smtpN, ok := emailNotifier.(*notifier.SMTPNotifier); ok {
+			digestSender = smtpN
+		}
+		adminHandler := handler.NewAdminHandler(userRepo, waitListRepo, projects, logger, emailNotifier, digestSender)
 		auth := handler.BasicAuthMiddleware(adminUser, adminHash, "waitinglist-admin", logger)
 
 		adminMux := http.NewServeMux()
