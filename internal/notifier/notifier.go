@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/smtp"
 	"strconv"
+	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
 	"github.com/tipok/waitinglist/internal/model"
@@ -88,13 +89,16 @@ func (n *SMTPNotifier) NotifyAccessGranted(user model.UserEntity, project model.
 }
 
 func (n *SMTPNotifier) send(from, to string, msg []byte) error {
+	const dialTimeout = 10 * time.Second
+
 	addr := net.JoinHostPort(n.host, strconv.Itoa(n.port))
 
 	var c *smtp.Client
 	var err error
 
 	if n.useTLS {
-		conn, dialErr := tls.Dial("tcp", addr, &tls.Config{ServerName: n.host})
+		dialer := &net.Dialer{Timeout: dialTimeout}
+		conn, dialErr := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: n.host})
 		if dialErr != nil {
 			return fmt.Errorf("tls dial: %w", dialErr)
 		}
@@ -103,9 +107,13 @@ func (n *SMTPNotifier) send(from, to string, msg []byte) error {
 			return fmt.Errorf("smtp client over tls: %w", err)
 		}
 	} else {
-		c, err = smtp.Dial(addr)
+		conn, dialErr := net.DialTimeout("tcp", addr, dialTimeout)
+		if dialErr != nil {
+			return fmt.Errorf("smtp dial: %w", dialErr)
+		}
+		c, err = smtp.NewClient(conn, n.host)
 		if err != nil {
-			return fmt.Errorf("smtp dial: %w", err)
+			return fmt.Errorf("smtp client: %w", err)
 		}
 		if ok, _ := c.Extension("STARTTLS"); ok {
 			if err = c.StartTLS(&tls.Config{ServerName: n.host}); err != nil {

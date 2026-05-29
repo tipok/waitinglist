@@ -71,11 +71,15 @@ func (n *SMTPNotifier) SendDigest(recipients []string, from, subject string, dat
 
 	msg := buildMIMEMessage(from, strings.Join(recipients, ", "), subject, body)
 
+	var firstErr error
 	for _, rcpt := range recipients {
 		if sendErr := n.send(from, rcpt, msg); sendErr != nil {
 			n.logger.Warn("digest: failed to send email",
 				"error", sendErr, "to", rcpt)
+			if firstErr == nil {
+				firstErr = sendErr
+			}
 		}
 	}
-	return nil
+	return firstErr
 }
