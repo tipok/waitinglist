@@ -55,7 +55,7 @@ func main() {
 			logger.Error("Error parsing database URL", "error", err)
 			os.Exit(1)
 		}
-		if parsed.User == nil {
+		if parsed.User == nil && (cfg.Database.Username != "" || cfg.Database.Password != "") {
 			parsed.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
 		}
 		dbURL = parsed.String()
@@ -254,7 +254,9 @@ func buildRepositories(db *sql.DB, driver database.Driver) (userRepository, wait
 	switch driver {
 	case database.DriverSQLite:
 		return sqlite.NewUserRepository(db), sqlite.NewWaitingListRepository(db), sqlite.NewSchedulerRepository(db)
-	default:
+	case database.DriverPostgres:
 		return postgres.NewUserRepository(db), postgres.NewWaitingListRepository(db), postgres.NewSchedulerRepository(db)
+	default:
+		panic(fmt.Sprintf("unsupported database driver: %q", driver))
 	}
 }
