@@ -10,12 +10,13 @@ A self-hosted waiting list service written in Go. It lets you gate access to you
 - **Admin web UI** — embedded single-page dashboard with user search, grant/revoke actions, and enlistment charts (protected by HTTP Basic Auth).
 - **Health endpoint** — `/healthz` pings the database and returns a structured JSON response (suitable for Kubernetes or Docker `HEALTHCHECK`).
 - **Multi-tenancy (projects)** — isolate users and waiting lists across multiple projects. Resolve the active project via an HTTP header, hostname mapping, or a default slug.
-- **Minimal dependencies** — Go standard library `net/http`, PostgreSQL via `lib/pq`, configuration via `koanf`.
+- **Dual database backend** — auto-detects PostgreSQL (`postgres://`) or SQLite (`sqlite://`) from the connection URL. SQLite requires no external server and runs as a single binary with a local file.
+- **Minimal dependencies** — Go standard library `net/http`, PostgreSQL via `lib/pq`, SQLite via `modernc.org/sqlite` (pure Go, no CGO), configuration via `koanf`.
 
 ## Requirements
 
 - Go 1.25+
-- PostgreSQL 14+
+- PostgreSQL 14+ **or** no external database (SQLite mode)
 - Docker (for linting and container builds)
 
 ## Quick Start
@@ -80,10 +81,10 @@ Configuration is loaded from a JSON file specified with the `--config` flag. Env
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `port` | int | `8080` | TCP port the HTTP server binds to. |
-| `database.url` | string | `postgres://localhost:5432/waitinglist?sslmode=disable` | PostgreSQL connection URL. |
-| `database.username` | string | — | Database username (appended to URL if `url` has no userinfo). |
-| `database.password` | string | — | Database password (appended to URL if `url` has no userinfo). |
-| `database.migrationsDir` | string | `migrations` | Path to the directory containing `.sql` migration files. |
+| `database.url` | string | `postgres://localhost:5432/waitinglist?sslmode=disable` | Database connection URL. The scheme determines the backend: `postgres://` uses PostgreSQL (lib/pq); `sqlite://` uses SQLite (modernc.org/sqlite). See [Database Backends](#database-backends) below. |
+| `database.username` | string | — | Database username (PostgreSQL only — appended to URL if `url` has no userinfo). |
+| `database.password` | string | — | Database password (PostgreSQL only — appended to URL if `url` has no userinfo). |
+| `database.migrationsDir` | string | `migrations` | Base path for migration files. The server appends `/postgres` or `/sqlite` based on the detected backend. |
 | `waitlist.entryBatchSize` | int | `25` | Maximum number of users promoted per scheduler run. |
 | `waitlist.entryWindowInterval` | duration | `30h` | Minimum age of a waiting list entry before it becomes eligible for promotion. Also the cooldown between scheduler batches. |
 | `schedulerInterval.disabled` | bool | `false` | Set to `true` to disable the automatic scheduler entirely. |
@@ -122,7 +123,7 @@ Every configuration field can be overridden with an environment variable. The ma
 | JSON Path | Environment Variable | Example |
 |-----------|---------------------|---------|
 | `port` | `WL_PORT` | `WL_PORT=9090` |
-| `database.url` | `WL_DATABASE_URL` | `WL_DATABASE_URL=postgres://db:5432/prod` |
+| `database.url` | `WL_DATABASE_URL` | `WL_DATABASE_URL=postgres://db:5432/prod` or `WL_DATABASE_URL=sqlite:///var/data/wl.db` |
 | `database.username` | `WL_DATABASE_USERNAME` | `WL_DATABASE_USERNAME=app` |
 | `database.password` | `WL_DATABASE_PASSWORD` | `WL_DATABASE_PASSWORD=secret` |
 | `database.migrationsDir` | `WL_DATABASE_MIGRATIONSDIR` | `WL_DATABASE_MIGRATIONSDIR=/app/migrations` |
@@ -141,6 +142,59 @@ Every configuration field can be overridden with an environment variable. The ma
 | `smtp.tls` | `WL_SMTP_TLS` | `WL_SMTP_TLS=true` |
 
 Environment variables take precedence over values in the JSON file.
+
+## Database Backends
+
+The database backend is auto-detected from the URL scheme in `database.url`.
+
+### PostgreSQL
+
+```json
+{
+  "database": {
+    "url": "postgres://localhost:5432/waitinglist?sslmode=disable",
+    "username": "myuser",
+    "password": "mypassword"
+  }
+}
+```
+
+Or via environment variable:
+
+```bash
+export WL_DATABASE_URL=postgres://user:pass@db:5432/waitinglist?sslmode=disable
+```
+
+### SQLite
+
+```json
+{
+  "database": {
+    "url": "sqlite:///path/to/waitinglist.db"
+  }
+}
+```
+
+SQLite URL formats:
+
+| URL | Description |
+|-----|-------------|
+| `sqlite:///absolute/path/to/file.db` | Absolute path (triple slash) |
+| `sqlite://relative/path.db` | Relative path from working directory |
+| `sqlite://:memory:` | In-memory database (testing only — data is lost on exit) |
+
+Or via environment variable:
+
+```bash
+export WL_DATABASE_URL=sqlite:///var/data/waitinglist.db
+```
+
+SQLite is ideal for single-instance deployments, development, and testing. No external server required — the database is stored in a single file. The backend uses WAL mode for improved read concurrency and sets a single write connection to prevent lock contention.
+
+**SQLite limitations:**
+- Single writer: concurrent writes serialize through one connection.
+- No cross-process sharing: only one running server process should use a given SQLite file.
+- For high-traffic multi-instance deployments, use PostgreSQL.
 
 ## Enabling the Admin Web UI
 

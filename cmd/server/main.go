@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
@@ -17,8 +19,10 @@ import (
 	"github.com/tipok/waitinglist/internal/handler"
 	"github.com/tipok/waitinglist/internal/handler/adminui"
 	lg "github.com/tipok/waitinglist/internal/logger"
+	"github.com/tipok/waitinglist/internal/model"
 	"github.com/tipok/waitinglist/internal/notifier"
-	"github.com/tipok/waitinglist/internal/repository"
+	"github.com/tipok/waitinglist/internal/repository/postgres"
+	"github.com/tipok/waitinglist/internal/repository/sqlite"
 	"github.com/tipok/waitinglist/internal/waitlist"
 )
 
@@ -43,16 +47,21 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	dbUrl, err := url.Parse(cfg.Database.URL)
-	if err != nil {
-		logger.Error("Error parsing database URL", "error", err)
-		os.Exit(1)
+	dbURL := cfg.Database.URL
+	if !strings.HasPrefix(dbURL, "sqlite://") {
+		// For PostgreSQL, allow username/password to be specified separately.
+		parsed, err := url.Parse(dbURL)
+		if err != nil {
+			logger.Error("Error parsing database URL", "error", err)
+			os.Exit(1)
+		}
+		if parsed.User == nil && (cfg.Database.Username != "" || cfg.Database.Password != "") {
+			parsed.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
+		}
+		dbURL = parsed.String()
 	}
 
-	if dbUrl.User == nil {
-		dbUrl.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
-	}
-	db, err := database.NewPostgresDB(dbUrl.String())
+	db, driver, err := database.New(dbURL)
 	if err != nil {
 		logger.Error("Error connecting to database", "error", err)
 		os.Exit(1)
@@ -63,14 +72,13 @@ func main() {
 		}
 	}()
 
-	if err := database.RunMigrations(db, cfg.Database.MigrationsDir, logger); err != nil {
+	migrationsDir := database.MigrationsDir(cfg.Database.MigrationsDir, driver)
+	if err := database.RunMigrations(db, migrationsDir, logger); err != nil {
 		logger.Error("Error running migrations", "error", err)
 		os.Exit(1)
 	}
 
-	userRepo := repository.NewUserRepository(db)
-	waitListRepo := repository.NewWaitingListRepository(db)
-	schedulerRepo := repository.NewSchedulerRepository(db)
+	userRepo, waitListRepo, schedulerRepo := buildRepositories(db, driver)
 
 	projects := cfg.Projects.Projects()
 
@@ -96,11 +104,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if smtpNotifier, ok := emailNotifier.(*notifier.SMTPNotifier); ok {
-		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, smtpNotifier)
-	} else {
-		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, nil)
-	}
+	smtpNotifier, _ := emailNotifier.(*notifier.SMTPNotifier)
+	waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, smtpNotifier)
 
 	mux := http.NewServeMux()
 
@@ -204,4 +209,54 @@ func runHealthCheck(port int) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+// userRepository aggregates all user-store methods used across handlers and
+// background goroutines in this binary.
+type userRepository interface {
+	CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
+	GetByEmailTx(ctx context.Context, tx model.DBTX, projectSlug, email string) (*model.UserEntity, error)
+	GetUserInfoByEmails(ctx context.Context, projectSlug string, emails []string) ([]model.UserInfo, error)
+	CountByAccess(ctx context.Context, projectSlug string) (int, int, error)
+	EnlistmentsByDay(ctx context.Context, projectSlug string, days int) ([]model.DayCount, error)
+	ListWithAccess(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error)
+	GetByID(ctx context.Context, id string) (*model.UserEntity, error)
+	GetByIDs(ctx context.Context, ids []string) ([]model.UserEntity, error)
+	GrantAccessTx(ctx context.Context, tx model.DBTX, ids []string, source string) error
+	RevokeAccess(ctx context.Context, id, reason, by string) error
+	GetGrantedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.UserEntity, error)
+}
+
+// waitingListRepository aggregates all waiting-list methods used in this binary.
+type waitingListRepository interface {
+	Add(ctx context.Context, tx model.DBTX, projectSlug, userID string) (*model.WaitingListEntry, error)
+	GetAll(ctx context.Context, projectSlug string) ([]model.WaitingListEntry, error)
+	GetWithOffsetLimit(ctx context.Context, projectSlug string, offset, limit *int) ([]model.WaitingListEntry, error)
+	ListJoined(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error)
+	DeleteByID(ctx context.Context, id string) error
+	DeleteByIDsTx(ctx context.Context, tx model.DBTX, ids []string) error
+	DeleteByUserIDTx(ctx context.Context, tx model.DBTX, userID string) error
+	GetEnlistedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.WaitingListAdminRow, error)
+	BeginTx(ctx context.Context) (model.Tx, error)
+}
+
+// schedulerRepository aggregates all scheduler-state methods used in this binary.
+type schedulerRepository interface {
+	GetLastSuccess(ctx context.Context, projectSlug, key string) (time.Time, error)
+	UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectSlug, key string) error
+}
+
+// buildRepositories constructs the right repository implementations for the
+// detected database driver.
+func buildRepositories(db *sql.DB, driver database.Driver) (userRepository, waitingListRepository, schedulerRepository) {
+	switch driver {
+	case database.DriverSQLite:
+		return sqlite.NewUserRepository(db), sqlite.NewWaitingListRepository(db), sqlite.NewSchedulerRepository(db)
+	case database.DriverPostgres:
+		return postgres.NewUserRepository(db), postgres.NewWaitingListRepository(db), postgres.NewSchedulerRepository(db)
+	default:
+		panic(fmt.Sprintf("unsupported database driver: %q", driver))
+	}
 }

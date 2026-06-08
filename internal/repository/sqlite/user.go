@@ -1,4 +1,4 @@
-package repository
+package sqlite
 
 import (
 	"context"
@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/google/uuid"
 
 	"github.com/tipok/waitinglist/internal/model"
 )
 
-// validGrantSources is the set of allowed access_granted_by values. Update
-// the migration 007 CHECK constraint in lockstep with this set.
+// validGrantSources mirrors the CHECK constraint in the SQLite migration.
 var validGrantSources = map[string]struct{}{
 	"scheduler": {},
 	"admin":     {},
@@ -25,19 +24,43 @@ var validGrantSources = map[string]struct{}{
 const userSelectColumns = `id, project_slug, firstname, lastname, email, has_access, created_at, ip_address,
 	access_granted_at, access_granted_by, access_revoked_at, access_revoked_by, access_revoke_reason`
 
-// UserRepository provides database operations for the user_entity table.
+// buildInPlaceholders builds a string of "?,?,?" for n arguments and a slice of
+// any-typed args from the given string slice.
+func buildInPlaceholders(ids []string) (string, []any) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	return strings.Join(placeholders, ","), args
+}
+
+// scanUser scans a full user_entity row into a UserEntity pointer.
+// SQLite stores timestamps as TEXT, so we use custom time scanners.
+func scanUser(scanner interface {
+	Scan(dest ...any) error
+}, u *model.UserEntity) error {
+	return scanner.Scan(
+		&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
+		&u.HasAccess, &timeScanner{&u.CreatedAt}, &u.IPAddress,
+		&nullTimeScanner{&u.AccessGrantedAt}, &u.AccessGrantedBy,
+		&nullTimeScanner{&u.AccessRevokedAt}, &u.AccessRevokedBy, &u.AccessRevokeReason,
+	)
+}
+
+// UserRepository provides SQLite database operations for the user_entity table.
 type UserRepository struct {
 	db *sql.DB
 }
 
-// NewUserRepository creates a new UserRepository.
+// NewUserRepository creates a new SQLite UserRepository.
 func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// Create inserts a new user into the user_entity table and populates the
-// generated ID on the provided UserEntity. Returns model.ErrDuplicateEmail
-// if the email already exists.
+// Create inserts a new user into the user_entity table. Returns
+// model.ErrDuplicateEmail if the email already exists for the project.
 //
 //goland:noinspection ALL
 func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) error {
@@ -48,20 +71,23 @@ func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) err
 //
 //goland:noinspection ALL
 func (r *UserRepository) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
-	query := `INSERT INTO user_entity (project_slug, firstname, lastname, email, ip_address)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, has_access, created_at`
+	id := uuid.New().String()
 
-	err := tx.QueryRowContext(ctx, query, user.ProjectSlug, user.Firstname, user.Lastname, user.Email, user.IPAddress).
-		Scan(&user.ID, &user.HasAccess, &user.CreatedAt)
+	query := `INSERT INTO user_entity (id, project_slug, firstname, lastname, email, ip_address)
+		VALUES (?, ?, ?, ?, ?, ?)
+		RETURNING has_access, created_at`
+
+	err := tx.QueryRowContext(ctx, query,
+		id, user.ProjectSlug, user.Firstname, user.Lastname, user.Email, user.IPAddress,
+	).Scan(&user.HasAccess, &timeScanner{&user.CreatedAt})
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		if isSQLiteUniqueViolation(err) {
 			return model.ErrDuplicateEmail
 		}
 		return fmt.Errorf("inserting user: %w", err)
 	}
 
+	user.ID = id
 	return nil
 }
 
@@ -73,23 +99,17 @@ func (r *UserRepository) GetByEmail(ctx context.Context, projectSlug, email stri
 	return r.GetByEmailTx(ctx, r.db, projectSlug, email)
 }
 
-// GetByEmailTx retrieves a user by email scoped to a project using the given
-// DBTX (transaction or DB).
+// GetByEmailTx retrieves a user by email scoped to a project using the given DBTX.
 //
 //goland:noinspection ALL
 func (r *UserRepository) GetByEmailTx(ctx context.Context, tx model.DBTX, projectSlug, email string) (*model.UserEntity, error) {
 	//goland:noinspection ALL
 	query := `SELECT ` + userSelectColumns + `
 		FROM user_entity
-		WHERE project_slug = $1 AND email = $2`
+		WHERE project_slug = ? AND email = ?`
 
 	user := &model.UserEntity{}
-	err := tx.QueryRowContext(ctx, query, projectSlug, email).Scan(
-		&user.ID, &user.ProjectSlug, &user.Firstname, &user.Lastname, &user.Email,
-		&user.HasAccess, &user.CreatedAt, &user.IPAddress,
-		&user.AccessGrantedAt, &user.AccessGrantedBy,
-		&user.AccessRevokedAt, &user.AccessRevokedBy, &user.AccessRevokeReason,
-	)
+	err := scanUser(tx.QueryRowContext(ctx, query, projectSlug, email), user)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound
@@ -109,13 +129,16 @@ func (r *UserRepository) GetUserInfoByEmails(ctx context.Context, projectSlug st
 		return []model.UserInfo{}, nil
 	}
 
+	placeholders, emailArgs := buildInPlaceholders(emails)
+	args := append([]any{projectSlug}, emailArgs...)
+
 	//goland:noinspection ALL
 	query := `SELECT project_slug, firstname, lastname, email, has_access, created_at,
 			access_granted_at, access_granted_by, access_revoked_at, access_revoke_reason
 		FROM user_entity
-		WHERE project_slug = $1 AND email = ANY($2)`
+		WHERE project_slug = ? AND email IN (` + placeholders + `)`
 
-	rows, err := r.db.QueryContext(ctx, query, projectSlug, pq.Array(emails))
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("querying users by emails: %w", err)
 	}
@@ -127,8 +150,8 @@ func (r *UserRepository) GetUserInfoByEmails(ctx context.Context, projectSlug st
 	for rows.Next() {
 		var u model.UserInfo
 		if err := rows.Scan(
-			&u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email, &u.HasAccess, &u.CreatedAt,
-			&u.AccessGrantedAt, &u.AccessGrantedBy, &u.AccessRevokedAt, &u.AccessRevokeReason,
+			&u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email, &u.HasAccess, &timeScanner{&u.CreatedAt},
+			&nullTimeScanner{&u.AccessGrantedAt}, &u.AccessGrantedBy, &nullTimeScanner{&u.AccessRevokedAt}, &u.AccessRevokeReason,
 		); err != nil {
 			return nil, fmt.Errorf("scanning user info: %w", err)
 		}
@@ -142,16 +165,13 @@ func (r *UserRepository) GetUserInfoByEmails(ctx context.Context, projectSlug st
 	return users, nil
 }
 
-// GrantAccess flips has_access to true for the given user IDs and records
-// the grant timestamp/source.
+// GrantAccess flips has_access to true for the given user IDs.
 func (r *UserRepository) GrantAccess(ctx context.Context, ids []string, source string) error {
 	return r.GrantAccessTx(ctx, r.db, ids, source)
 }
 
-// GrantAccessTx flips has_access to true for the given user IDs, recording
-// the grant timestamp and source ('scheduler' | 'admin'). Any prior
-// revocation columns are cleared so re-granting access leaves the audit
-// state consistent.
+// GrantAccessTx flips has_access to 1 for the given user IDs, recording the
+// grant timestamp and source. Any prior revocation columns are cleared.
 //
 // Returns model.ErrUserNotFound if none of the given IDs match any rows.
 // An empty `ids` slice is a no-op.
@@ -165,25 +185,28 @@ func (r *UserRepository) GrantAccessTx(ctx context.Context, tx model.DBTX, ids [
 		return nil
 	}
 
+	placeholders, idArgs := buildInPlaceholders(ids)
+	args := append([]any{source}, idArgs...)
+
 	query := `UPDATE user_entity
-		SET    has_access           = TRUE,
-		       access_granted_at    = NOW(),
-		       access_granted_by    = $1,
+		SET    has_access           = 1,
+		       access_granted_at    = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+		       access_granted_by    = ?,
 		       access_revoked_at    = NULL,
 		       access_revoked_by    = NULL,
 		       access_revoke_reason = NULL
-		WHERE  id = ANY($2)`
+		WHERE  id IN (` + placeholders + `)`
 
-	result, err := tx.ExecContext(ctx, query, source, pq.Array(ids))
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("granting access: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("checking rows affected: %w", err)
 	}
-	if rows == 0 {
+	if rowsAffected == 0 {
 		return model.ErrUserNotFound
 	}
 
@@ -198,15 +221,10 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.UserEnt
 	//goland:noinspection ALL
 	query := `SELECT ` + userSelectColumns + `
 		FROM user_entity
-		WHERE id = $1`
+		WHERE id = ?`
 
 	user := &model.UserEntity{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.ProjectSlug, &user.Firstname, &user.Lastname, &user.Email,
-		&user.HasAccess, &user.CreatedAt, &user.IPAddress,
-		&user.AccessGrantedAt, &user.AccessGrantedBy,
-		&user.AccessRevokedAt, &user.AccessRevokedBy, &user.AccessRevokeReason,
-	)
+	err := scanUser(r.db.QueryRowContext(ctx, query, id), user)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound
@@ -224,17 +242,12 @@ func (r *UserRepository) GetByIDs(ctx context.Context, ids []string) ([]model.Us
 		return nil, nil
 	}
 
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
-	}
+	placeholders, args := buildInPlaceholders(ids)
 
 	//goland:noinspection ALL
 	query := `SELECT ` + userSelectColumns + `
 		FROM user_entity
-		WHERE id IN (` + strings.Join(placeholders, ",") + `)`
+		WHERE id IN (` + placeholders + `)`
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -245,12 +258,7 @@ func (r *UserRepository) GetByIDs(ctx context.Context, ids []string) ([]model.Us
 	var users []model.UserEntity
 	for rows.Next() {
 		var u model.UserEntity
-		if err := rows.Scan(
-			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
-			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
-			&u.AccessGrantedAt, &u.AccessGrantedBy,
-			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
-		); err != nil {
+		if err := scanUser(rows, &u); err != nil {
 			return nil, fmt.Errorf("scanning user row: %w", err)
 		}
 		users = append(users, u)
@@ -258,9 +266,8 @@ func (r *UserRepository) GetByIDs(ctx context.Context, ids []string) ([]model.Us
 	return users, rows.Err()
 }
 
-// CountByAccess returns (waitListCount, withAccessCount) — the number of
-// users currently on the waiting list and the number of users who currently
-// have access. When projectSlug is non-empty, counts are scoped to that project.
+// CountByAccess returns (waitListCount, withAccessCount). When projectSlug is
+// non-empty, counts are scoped to that project.
 //
 //goland:noinspection ALL
 func (r *UserRepository) CountByAccess(ctx context.Context, projectSlug string) (int, int, error) {
@@ -269,27 +276,26 @@ func (r *UserRepository) CountByAccess(ctx context.Context, projectSlug string) 
 	if projectSlug == "" {
 		const query = `
 			SELECT
-				(SELECT COUNT(*) FROM waiting_list)                       AS waitlist_count,
-				(SELECT COUNT(*) FROM user_entity WHERE has_access = TRUE) AS access_count`
+				(SELECT COUNT(*) FROM waiting_list)                        AS waitlist_count,
+				(SELECT COUNT(*) FROM user_entity WHERE has_access = 1)    AS access_count`
 		if err := r.db.QueryRowContext(ctx, query).Scan(&waitListCount, &withAccessCount); err != nil {
 			return 0, 0, fmt.Errorf("counting users by access: %w", err)
 		}
 	} else {
 		const query = `
 			SELECT
-				(SELECT COUNT(*) FROM waiting_list WHERE project_slug = $1)                       AS waitlist_count,
-				(SELECT COUNT(*) FROM user_entity WHERE has_access = TRUE AND project_slug = $1) AS access_count`
-		if err := r.db.QueryRowContext(ctx, query, projectSlug).Scan(&waitListCount, &withAccessCount); err != nil {
+				(SELECT COUNT(*) FROM waiting_list WHERE project_slug = ?)                      AS waitlist_count,
+				(SELECT COUNT(*) FROM user_entity WHERE has_access = 1 AND project_slug = ?)   AS access_count`
+		if err := r.db.QueryRowContext(ctx, query, projectSlug, projectSlug).Scan(&waitListCount, &withAccessCount); err != nil {
 			return 0, 0, fmt.Errorf("counting users by access: %w", err)
 		}
 	}
 	return waitListCount, withAccessCount, nil
 }
 
-// EnlistmentsByDay returns one DayCount per UTC day in the last `days`
-// days, ascending by day. Days with no signups are zero-filled. `days` is
-// clamped to [1, 365]. When projectSlug is non-empty, results are scoped to
-// that project.
+// EnlistmentsByDay returns one DayCount per UTC day in the last `days` days,
+// ascending by day. Days with no signups are zero-filled. `days` is clamped
+// to [1, 365]. When projectSlug is non-empty, results are scoped to that project.
 //
 //goland:noinspection ALL
 func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectSlug string, days int) ([]model.DayCount, error) {
@@ -300,46 +306,46 @@ func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectSlug strin
 		days = 365
 	}
 
-	var rows *sql.Rows
+	var sqlRows *sql.Rows
 	var err error
 
 	if projectSlug == "" {
 		//goland:noinspection ALL
 		const query = `
-			SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+			SELECT strftime('%Y-%m-%d', created_at) AS day,
 			       COUNT(*) AS count
 			FROM   user_entity
-			WHERE  created_at >= (NOW() AT TIME ZONE 'UTC') - ($1 || ' days')::interval
+			WHERE  created_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
 			GROUP  BY 1
 			ORDER  BY 1`
-		rows, err = r.db.QueryContext(ctx, query, days)
+		sqlRows, err = r.db.QueryContext(ctx, query, days)
 	} else {
 		//goland:noinspection ALL
 		const query = `
-			SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+			SELECT strftime('%Y-%m-%d', created_at) AS day,
 			       COUNT(*) AS count
 			FROM   user_entity
-			WHERE  project_slug = $1 AND created_at >= (NOW() AT TIME ZONE 'UTC') - ($2 || ' days')::interval
+			WHERE  project_slug = ? AND created_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')
 			GROUP  BY 1
 			ORDER  BY 1`
-		rows, err = r.db.QueryContext(ctx, query, projectSlug, days)
+		sqlRows, err = r.db.QueryContext(ctx, query, projectSlug, days)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("querying enlistments by day: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		_ = sqlRows.Close()
 	}()
 
 	got := make(map[string]int, days)
-	for rows.Next() {
+	for sqlRows.Next() {
 		var d model.DayCount
-		if err := rows.Scan(&d.Day, &d.Count); err != nil {
+		if err := sqlRows.Scan(&d.Day, &d.Count); err != nil {
 			return nil, fmt.Errorf("scanning day count: %w", err)
 		}
 		got[d.Day] = d.Count
 	}
-	if err := rows.Err(); err != nil {
+	if err := sqlRows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating day count rows: %w", err)
 	}
 
@@ -352,63 +358,57 @@ func (r *UserRepository) EnlistmentsByDay(ctx context.Context, projectSlug strin
 	return out, nil
 }
 
-// ListWithAccess returns users where has_access = true, optionally filtered
-// by a case-insensitive email substring and/or project. Pagination via
-// limit/offset. The caller is responsible for clamping limit/offset to sane
-// values. When projectSlug is empty, users from all projects are returned.
+// ListWithAccess returns users where has_access = 1, optionally filtered by
+// a case-insensitive email substring and/or project. Pagination via limit/offset.
+// When projectSlug is empty, users from all projects are returned.
 //
 //goland:noinspection ALL
 func (r *UserRepository) ListWithAccess(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.UserEntity, error) {
-	var rows *sql.Rows
+	var sqlRows *sql.Rows
 	var err error
 
 	if projectSlug == "" {
 		//goland:noinspection ALL
 		query := `SELECT ` + userSelectColumns + `
 			FROM   user_entity
-			WHERE  has_access = TRUE
-			  AND  ($1 = '' OR email ILIKE '%' || $1 || '%')
-			ORDER  BY access_granted_at DESC NULLS LAST, email ASC
-			LIMIT  $2 OFFSET $3`
-		rows, err = r.db.QueryContext(ctx, query, emailLike, limit, offset)
+			WHERE  has_access = 1
+			  AND  (? = '' OR email LIKE '%' || ? || '%')
+			ORDER  BY CASE WHEN access_granted_at IS NULL THEN 1 ELSE 0 END, access_granted_at DESC, email ASC
+			LIMIT  ? OFFSET ?`
+		sqlRows, err = r.db.QueryContext(ctx, query, emailLike, emailLike, limit, offset)
 	} else {
 		//goland:noinspection ALL
 		query := `SELECT ` + userSelectColumns + `
 			FROM   user_entity
-			WHERE  has_access = TRUE
-			  AND  project_slug = $1
-			  AND  ($2 = '' OR email ILIKE '%' || $2 || '%')
-			ORDER  BY access_granted_at DESC NULLS LAST, email ASC
-			LIMIT  $3 OFFSET $4`
-		rows, err = r.db.QueryContext(ctx, query, projectSlug, emailLike, limit, offset)
+			WHERE  has_access = 1
+			  AND  project_slug = ?
+			  AND  (? = '' OR email LIKE '%' || ? || '%')
+			ORDER  BY CASE WHEN access_granted_at IS NULL THEN 1 ELSE 0 END, access_granted_at DESC, email ASC
+			LIMIT  ? OFFSET ?`
+		sqlRows, err = r.db.QueryContext(ctx, query, projectSlug, emailLike, emailLike, limit, offset)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("listing users with access: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		_ = sqlRows.Close()
 	}()
 
 	users := make([]model.UserEntity, 0, limit)
-	for rows.Next() {
+	for sqlRows.Next() {
 		var u model.UserEntity
-		if err := rows.Scan(
-			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
-			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
-			&u.AccessGrantedAt, &u.AccessGrantedBy,
-			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
-		); err != nil {
+		if err := scanUser(sqlRows, &u); err != nil {
 			return nil, fmt.Errorf("scanning user with access: %w", err)
 		}
 		users = append(users, u)
 	}
-	if err := rows.Err(); err != nil {
+	if err := sqlRows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating users with access: %w", err)
 	}
 	return users, nil
 }
 
-// ListAllWithAccess returns all users with has_access = true for the given
+// ListAllWithAccess returns all users with has_access = 1 for the given
 // project, with no pagination limit.
 //
 //goland:noinspection ALL
@@ -416,29 +416,24 @@ func (r *UserRepository) ListAllWithAccess(ctx context.Context, projectSlug stri
 	//goland:noinspection ALL
 	query := `SELECT ` + userSelectColumns + `
 		FROM   user_entity
-		WHERE  has_access = TRUE AND project_slug = $1
-		ORDER  BY access_granted_at DESC NULLS LAST, email ASC`
+		WHERE  has_access = 1 AND project_slug = ?
+		ORDER  BY CASE WHEN access_granted_at IS NULL THEN 1 ELSE 0 END, access_granted_at DESC, email ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, projectSlug)
+	sqlRows, err := r.db.QueryContext(ctx, query, projectSlug)
 	if err != nil {
 		return nil, fmt.Errorf("listing all users with access: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() { _ = sqlRows.Close() }()
 
 	var users []model.UserEntity
-	for rows.Next() {
+	for sqlRows.Next() {
 		var u model.UserEntity
-		if err := rows.Scan(
-			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
-			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
-			&u.AccessGrantedAt, &u.AccessGrantedBy,
-			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
-		); err != nil {
+		if err := scanUser(sqlRows, &u); err != nil {
 			return nil, fmt.Errorf("scanning user with access: %w", err)
 		}
 		users = append(users, u)
 	}
-	return users, rows.Err()
+	return users, sqlRows.Err()
 }
 
 // GetGrantedSince returns users whose access was granted after the given
@@ -449,29 +444,24 @@ func (r *UserRepository) GetGrantedSince(ctx context.Context, projectSlug string
 	//goland:noinspection ALL
 	query := `SELECT ` + userSelectColumns + `
 		FROM user_entity
-		WHERE project_slug = $1 AND access_granted_at > $2
+		WHERE project_slug = ? AND access_granted_at > ?
 		ORDER BY access_granted_at ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, projectSlug, since)
+	sqlRows, err := r.db.QueryContext(ctx, query, projectSlug, since.UTC().Format(time.RFC3339))
 	if err != nil {
 		return nil, fmt.Errorf("querying users granted since: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() { _ = sqlRows.Close() }()
 
 	var users []model.UserEntity
-	for rows.Next() {
+	for sqlRows.Next() {
 		var u model.UserEntity
-		if err := rows.Scan(
-			&u.ID, &u.ProjectSlug, &u.Firstname, &u.Lastname, &u.Email,
-			&u.HasAccess, &u.CreatedAt, &u.IPAddress,
-			&u.AccessGrantedAt, &u.AccessGrantedBy,
-			&u.AccessRevokedAt, &u.AccessRevokedBy, &u.AccessRevokeReason,
-		); err != nil {
+		if err := scanUser(sqlRows, &u); err != nil {
 			return nil, fmt.Errorf("scanning granted user: %w", err)
 		}
 		users = append(users, u)
 	}
-	return users, rows.Err()
+	return users, sqlRows.Err()
 }
 
 // RevokeAccess flips has_access to false for one user and records the
@@ -482,12 +472,7 @@ func (r *UserRepository) RevokeAccess(ctx context.Context, id, reason, by string
 
 // RevokeAccessTx is the transactional form of RevokeAccess. The `reason`
 // must be non-empty (after trimming) — empty reasons return
-// model.ErrRevokeReasonRequired. A missing user returns
-// model.ErrUserNotFound.
-//
-// This is the only code path permitted to set has_access from true to false.
-// Migration 007 dropped the database trigger that previously enforced
-// one-way semantics; the invariant now lives at the application layer.
+// model.ErrRevokeReasonRequired. A missing user returns model.ErrUserNotFound.
 //
 //goland:noinspection ALL
 func (r *UserRepository) RevokeAccessTx(ctx context.Context, tx model.DBTX, id, reason, by string) error {
@@ -496,22 +481,22 @@ func (r *UserRepository) RevokeAccessTx(ctx context.Context, tx model.DBTX, id, 
 	}
 
 	query := `UPDATE user_entity
-		SET    has_access           = FALSE,
-		       access_revoked_at    = NOW(),
-		       access_revoked_by    = $1,
-		       access_revoke_reason = $2
-		WHERE  id = $3`
+		SET    has_access           = 0,
+		       access_revoked_at    = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+		       access_revoked_by    = ?,
+		       access_revoke_reason = ?
+		WHERE  id = ?`
 
 	result, err := tx.ExecContext(ctx, query, by, reason, id)
 	if err != nil {
 		return fmt.Errorf("revoking access: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("checking rows affected: %w", err)
 	}
-	if rows == 0 {
+	if rowsAffected == 0 {
 		return model.ErrUserNotFound
 	}
 

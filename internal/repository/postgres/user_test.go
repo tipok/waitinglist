@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := database.RunMigrations(db, "../../migrations", logger); err != nil {
+	if err := database.RunMigrations(db, "../../../migrations/postgres", logger); err != nil {
 		db.Close()
 		t.Fatalf("failed to run migrations: %v", err)
 	}
