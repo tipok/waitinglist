@@ -138,13 +138,13 @@ Create the SQLite implementation of waiting list repository operations.
 
 Create the SQLite implementation of scheduler state operations.
 
-- [ ] Create `internal/repository/sqlite/scheduler.go` implementing SchedulerRepository methods
-- [ ] Replace `$1, $2` with `?` placeholders
-- [ ] Replace `NOW()` with `datetime('now')` in the upsert query
-- [ ] Verify `ON CONFLICT ... DO UPDATE` works identically in SQLite
-- [ ] Write interface-conformance tests: GetLastSuccess (no rows, existing row)
-- [ ] Write interface-conformance tests: UpdateLastSuccess (insert, upsert)
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/repository/sqlite/scheduler.go` implementing SchedulerRepository methods
+- [x] Replace `$1, $2` with `?` placeholders
+- [x] Replace `NOW()` with `datetime('now')` in the upsert query
+- [x] Verify `ON CONFLICT ... DO UPDATE` works identically in SQLite
+- [x] Write interface-conformance tests: GetLastSuccess (no rows, existing row)
+- [x] Write interface-conformance tests: UpdateLastSuccess (insert, upsert)
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 6: Rename PostgreSQL repository to namespaced package
 
