@@ -188,13 +188,13 @@ Write a shared test suite that runs the same behavioral tests against both backe
 
 Update config handling to document the URL-based detection and ensure SQLite paths work with the configuration system.
 
-- [ ] Update `conf/dev.json` to show both PostgreSQL and SQLite examples (commented out or as a note)
-- [ ] Verify `WL_DATABASE_URL=sqlite:///tmp/waitinglist.db` works with env override
-- [ ] Update README.md: add SQLite section to Configuration Reference
-- [ ] Update README.md: document the URL scheme detection (`postgres://` vs `sqlite://`)
-- [ ] Update README.md: add note about SQLite limitations (single-writer, no concurrent access across processes)
-- [ ] Add new dependencies to the External Dependencies table in CLAUDE.md
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Update `conf/dev.json` to show both PostgreSQL and SQLite examples (commented out or as a note)
+- [x] Verify `WL_DATABASE_URL=sqlite:///tmp/waitinglist.db` works with env override
+- [x] Update README.md: add SQLite section to Configuration Reference
+- [x] Update README.md: document the URL scheme detection (`postgres://` vs `sqlite://`)
+- [x] Update README.md: add note about SQLite limitations (single-writer, no concurrent access across processes)
+- [x] Add new dependencies to the External Dependencies table in CLAUDE.md
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 10: Verify acceptance criteria
 

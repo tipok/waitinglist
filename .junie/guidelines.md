@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a **waiting list service** written in Go. It uses PostgreSQL for storage and relies on Go's standard library (including `net/http.ServeMux`) to minimize dependencies, with the exception of the PostgreSQL driver and the configuration library.
+This is a **waiting list service** written in Go. It supports PostgreSQL and SQLite as storage backends (auto-detected from the database URL scheme) and relies on Go's standard library (including `net/http.ServeMux`) to minimize dependencies.
 
 - **Module**: `github.com/tipok/waitinglist`
 - **Go version**: 1.25.1
@@ -14,6 +14,8 @@ This is a **waiting list service** written in Go. It uses PostgreSQL for storage
 | Dependency | Purpose |
 |---|---|
 | `github.com/lib/pq` | PostgreSQL driver for `database/sql` |
+| `modernc.org/sqlite` | Pure-Go SQLite driver for `database/sql` (no CGO) |
+| `github.com/google/uuid` | UUID generation for SQLite repositories (PostgreSQL uses server-side `gen_random_uuid()`) |
 | `github.com/knadh/koanf/v2` | Configuration loading (JSON file + env vars) |
 | `github.com/knadh/koanf/providers/env/v2` | Environment variable provider for koanf |
 | `github.com/knadh/koanf/providers/file` | File provider for koanf |
@@ -27,7 +29,10 @@ waitinglist/
 ├── cmd/server/main.go              # Application entry point, health-check probe mode
 ├── internal/
 │   ├── config/config.go            # Configuration loading (koanf, JSON file + env override)
-│   ├── database/postgres.go        # DB connection setup + migration runner
+│   ├── database/
+│   │   ├── database.go             # DB factory: New(url) → *sql.DB + Driver (auto-detects postgres:// vs sqlite://)
+│   │   ├── postgres.go             # NewPostgresDB() — PostgreSQL connection + migration runner
+│   │   └── sqlite.go               # NewSQLiteDB() — SQLite connection (WAL mode, foreign keys on)
 │   ├── handler/
 │   │   ├── health.go               # GET /healthz — DB-ping liveness/readiness probe
 │   │   ├── ip.go                   # Client IP extraction (X-Forwarded-For → X-Real-Ip → RemoteAddr)
@@ -48,14 +53,23 @@ waitinglist/
 │   │       ├── access_granted.html # Access-granted notification template
 │   │       └── digest.html         # Admin digest email template
 │   ├── repository/
-│   │   ├── scheduler.go            # DB operations for scheduler_state table
-│   │   ├── user.go                 # DB operations for user_entity table (CRUD, grant, revoke)
-│   │   └── waitinglist.go          # DB operations for waiting_list table
+│   │   ├── postgres/               # PostgreSQL repository implementations
+│   │   │   ├── user.go             # DB operations for user_entity table (CRUD, grant, revoke)
+│   │   │   ├── waitinglist.go      # DB operations for waiting_list table
+│   │   │   └── scheduler.go        # DB operations for scheduler_state table
+│   │   ├── sqlite/                 # SQLite repository implementations
+│   │   │   ├── user.go             # SQLite-adapted user operations (? placeholders, Go UUID gen)
+│   │   │   ├── waitinglist.go      # SQLite-adapted waiting list operations
+│   │   │   └── scheduler.go        # SQLite-adapted scheduler operations
+│   │   └── repotest/               # Shared behavioral test suite (runs against both backends)
 │   └── waitlist/
 │       ├── waitlist.go             # Background scheduler goroutine that grants access
 │       └── digest.go              # Background digest email scheduler
 ├── migrations/
-│   └── 001_init.sql                # Consolidated schema (user_entity, waiting_list, scheduler_state with project_slug multi-tenancy)
+│   ├── postgres/
+│   │   └── 001_init.sql            # PostgreSQL schema (gen_random_uuid, inet, timestamp with time zone)
+│   └── sqlite/
+│       └── 001_init.sql            # SQLite schema (TEXT UUIDs, TEXT timestamps, no PG-specific types)
 ├── conf/dev.json                   # Development configuration file
 ├── docs/plans/                     # Feature plans
 ├── Dockerfile                      # Multi-stage build → distroless runtime
@@ -78,10 +92,10 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | JSON Path | Type | Default | Description |
 |---|---|---|---|
 | `port` | int | `8080` | HTTP server port (binds to `0.0.0.0`) |
-| `database.url` | string | `postgres://localhost:5432/waitinglist?sslmode=disable` | PostgreSQL connection URL |
-| `database.username` | string | — | DB username (appended to URL if URL has no userinfo) |
-| `database.password` | string | — | DB password (appended to URL if URL has no userinfo) |
-| `database.migrationsDir` | string | `migrations` | Path to `.sql` migration files |
+| `database.url` | string | `postgres://localhost:5432/waitinglist?sslmode=disable` | Database connection URL. Scheme determines backend: `postgres://` → PostgreSQL (lib/pq); `sqlite://` → SQLite (modernc.org/sqlite). SQLite formats: `sqlite:///abs/path.db`, `sqlite://rel/path.db`, `sqlite://:memory:` |
+| `database.username` | string | — | DB username — PostgreSQL only (appended to URL if URL has no userinfo) |
+| `database.password` | string | — | DB password — PostgreSQL only (appended to URL if URL has no userinfo) |
+| `database.migrationsDir` | string | `migrations` | Base path for migration directories. The server appends `/postgres` or `/sqlite` based on the detected backend. |
 | `waitlist.entryBatchSize` | int | `25` | Max users promoted per scheduler batch |
 | `waitlist.entryWindowInterval` | duration | `30h` | Min entry age for promotion + cooldown between batches |
 | `schedulerInterval.disabled` | bool | `false` | Disable automatic access granting entirely |
