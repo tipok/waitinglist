@@ -212,10 +212,10 @@ Update config handling to document the URL-based detection and ensure SQLite pat
 
 ### Task 11: [Final] Update documentation
 
-- [ ] Update CLAUDE.md project structure section to reflect new directory layout
-- [ ] Update CLAUDE.md External Dependencies table with new deps
-- [ ] Update CLAUDE.md Configuration section with sqlite URL format
-- [ ] Verify README.md is complete and accurate
+- [x] Update CLAUDE.md project structure section to reflect new directory layout
+- [x] Update CLAUDE.md External Dependencies table with new deps
+- [x] Update CLAUDE.md Configuration section with sqlite URL format
+- [x] Verify README.md is complete and accurate
 
 ## Technical Details
 

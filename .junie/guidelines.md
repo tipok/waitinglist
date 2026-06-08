@@ -146,8 +146,9 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 
 ### Database
 
-- PostgreSQL with three tables: `user_entity`, `waiting_list`, and `scheduler_state`. Multi-tenancy uses a `project_slug` text column (no separate project table — projects are defined in config only).
-- Migrations are plain `.sql` files in `migrations/`, executed in alphabetical order on startup.
+- Three tables: `user_entity`, `waiting_list`, and `scheduler_state`. Multi-tenancy uses a `project_slug` text column (no separate project table — projects are defined in config only).
+- Backend is auto-detected from the URL scheme: `postgres://` uses PostgreSQL (lib/pq), `sqlite://` uses SQLite (modernc.org/sqlite, pure Go, no CGO).
+- Migrations are plain `.sql` files in `migrations/postgres/` or `migrations/sqlite/`, executed in alphabetical order on startup. The server appends `/postgres` or `/sqlite` to `database.migrationsDir` based on the detected driver.
 - Schema uses `IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` for idempotent migrations.
 - All migrations run on every startup (no migration state table) — they must be written to be re-runnable.
 - Integration tests requiring a real database are gated by the `TEST_DATABASE_URL` environment variable.
@@ -157,8 +158,8 @@ Env vars use prefix `WL_`, flatten nested keys with `_`, uppercase everything. T
 1. Parse flags (`--config`, `--health-check`)
 2. If `--health-check`: probe `127.0.0.1:<port>/healthz` and `os.Exit(0|1)` — no config file needed, port from `WL_PORT` env or default
 3. Load configuration from JSON file + env overlay (koanf)
-4. Connect to PostgreSQL (URL composed from `database.url` + optional `username`/`password`)
-5. Run migrations from `migrations/` directory
+4. Connect to database — auto-detect backend from URL scheme (`postgres://` → PostgreSQL, `sqlite://` → SQLite); compose URL with optional `username`/`password` for PostgreSQL only
+5. Run migrations from `migrations/<driver>/` directory
 6. Start background scheduler goroutine (unless `schedulerInterval.disabled`)
 7. Register routes: waitinglist, health, admin (if credentials configured)
 8. Start HTTP server on `0.0.0.0:<port>` with graceful shutdown on SIGINT
@@ -228,7 +229,7 @@ The embedded SPA lives in `internal/handler/adminui/static/` and is served with 
 
 ### Access Grant Sources
 
-The `access_granted_by` column is constrained to known values. The `validGrantSources` map in `repository/user.go` must stay in sync with the `CHECK` constraint in migration 007. Currently allowed: `"scheduler"`, `"admin"`.
+The `access_granted_by` column is constrained to known values. The `validGrantSources` map in `repository/postgres/user.go` (and `repository/sqlite/user.go`) must stay in sync with the `CHECK` constraint in the migration DDL. Currently allowed: `"scheduler"`, `"admin"`.
 
 ### Client IP Extraction
 
@@ -274,6 +275,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `26-smtp-notifications` | ✅ Complete | SMTP email notifications on access grant (per-project from/subject, embedded HTML template) |
 | `27-admin-digest-email` | ✅ Complete | Periodic admin digest email summarizing new waitlist entries and access grants per project |
 | `28-admin-send-digest-now` | ✅ Complete | Admin "Send Digest Now" button: full-state snapshot digest via `POST /admin/digest/send` |
+| `29-sqlite-support` | ✅ Complete | SQLite as alternative backend alongside PostgreSQL; auto-detected from URL scheme; dual migrations, dual repository implementations, shared parity tests |
 
 ## Development Workflow
 
