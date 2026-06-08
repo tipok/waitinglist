@@ -11,3 +11,9 @@ func isSQLiteUniqueViolation(err error) bool {
 	var sqliteErr *sqllib.Error
 	return errors.As(err, &sqliteErr) && sqliteErr.Code() == 2067
 }
+
+// isSQLiteForeignKeyViolation returns true when err is a SQLite FOREIGN KEY constraint error (code 787).
+func isSQLiteForeignKeyViolation(err error) bool {
+	var sqliteErr *sqllib.Error
+	return errors.As(err, &sqliteErr) && sqliteErr.Code() == 787
+}

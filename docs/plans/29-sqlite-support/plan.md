@@ -122,17 +122,17 @@ Create the SQLite implementation of user repository operations with SQLite-compa
 
 Create the SQLite implementation of waiting list repository operations.
 
-- [ ] Create `internal/repository/sqlite/waitinglist.go` implementing all WaitingListRepository methods
-- [ ] Replace `$1, $2` placeholders with `?`
-- [ ] Replace `pq.Array(ids)` + `ANY($1)` in DeleteByIDs with dynamically built `IN (?, ?, ...)`
-- [ ] Handle constraint violation errors (23505 → UNIQUE, 23503 → FOREIGN KEY) using SQLite error types
-- [ ] Verify `RETURNING` works with modernc.org/sqlite (SQLite 3.35+)
-- [ ] Replace `ILIKE` with `LIKE` in ListJoined
-- [ ] Write interface-conformance tests: Add, GetAll, GetWithOffsetLimit, GetEnlistedSince
-- [ ] Write interface-conformance tests: ListAllJoined, ListJoined, DeleteByIDs, DeleteByID, DeleteByUserID
-- [ ] Write error-case tests: already on waitlist, foreign key violation, entry not found
-- [ ] Write BeginTx test verifying transaction commit/rollback semantics
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/repository/sqlite/waitinglist.go` implementing all WaitingListRepository methods
+- [x] Replace `$1, $2` placeholders with `?`
+- [x] Replace `pq.Array(ids)` + `ANY($1)` in DeleteByIDs with dynamically built `IN (?, ?, ...)`
+- [x] Handle constraint violation errors (23505 → UNIQUE, 23503 → FOREIGN KEY) using SQLite error types
+- [x] Verify `RETURNING` works with modernc.org/sqlite (SQLite 3.35+)
+- [x] Replace `ILIKE` with `LIKE` in ListJoined
+- [x] Write interface-conformance tests: Add, GetAll, GetWithOffsetLimit, GetEnlistedSince
+- [x] Write interface-conformance tests: ListAllJoined, ListJoined, DeleteByIDs, DeleteByID, DeleteByUserID
+- [x] Write error-case tests: already on waitlist, foreign key violation, entry not found
+- [x] Write BeginTx test verifying transaction commit/rollback semantics
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 5: Implement SQLite SchedulerRepository
 

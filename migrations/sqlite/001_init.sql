@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS user_entity
     lastname             TEXT    NOT NULL,
     email                TEXT    NOT NULL,
     has_access           INTEGER NOT NULL DEFAULT 0,
-    created_at           TEXT    NOT NULL DEFAULT (datetime('now')),
+    created_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     ip_address           TEXT,
     access_granted_at    TEXT,
     access_granted_by    TEXT
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS waiting_list
     id                  TEXT    NOT NULL PRIMARY KEY,
     user_id             TEXT    NOT NULL UNIQUE
         REFERENCES user_entity (id) ON DELETE CASCADE,
-    created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     weight              INTEGER NOT NULL DEFAULT 0,
     weighted_created_at TEXT GENERATED ALWAYS AS (datetime(created_at, '-' || (weight * 3600) || ' seconds')) STORED,
     project_slug        TEXT    NOT NULL
@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_waiting_list_project_slug_weighted
 CREATE TABLE IF NOT EXISTS scheduler_state
 (
     key          TEXT NOT NULL,
-    value        TEXT NOT NULL DEFAULT (datetime('now')),
+    value        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     project_slug TEXT NOT NULL,
     PRIMARY KEY (project_slug, key)
 );
