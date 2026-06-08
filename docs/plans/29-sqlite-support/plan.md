@@ -66,15 +66,15 @@ Add SQLite as an alternative database backend alongside PostgreSQL. The driver i
 
 Extract explicit repository interfaces from the handler-defined interfaces into a shared location, and create the database factory that auto-detects the driver from the URL scheme.
 
-- [ ] Create `internal/database/database.go` with a `New(databaseURL string) (*sql.DB, Driver, error)` factory function that parses the URL scheme (`postgres://` → postgres driver, `sqlite://` → sqlite driver) and returns the opened connection plus a `Driver` enum (`DriverPostgres`, `DriverSQLite`)
-- [ ] Define `Driver` type (string or int) in `internal/database/database.go`
-- [ ] For SQLite URLs, parse `sqlite:///path/to/file.db` to extract the file path and open with modernc.org/sqlite driver
-- [ ] For SQLite, enable WAL mode and foreign keys (`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON`) on connection open
-- [ ] Keep `internal/database/postgres.go` working as-is (the factory calls into it for postgres URLs)
-- [ ] Create `internal/database/sqlite.go` with `NewSQLiteDB(path string) (*sql.DB, error)`
-- [ ] Write tests for factory URL parsing (postgres://, sqlite://, invalid schemes)
-- [ ] Write tests for SQLite connection open (temp file, :memory:)
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/database/database.go` with a `New(databaseURL string) (*sql.DB, Driver, error)` factory function that parses the URL scheme (`postgres://` → postgres driver, `sqlite://` → sqlite driver) and returns the opened connection plus a `Driver` enum (`DriverPostgres`, `DriverSQLite`)
+- [x] Define `Driver` type (string or int) in `internal/database/database.go`
+- [x] For SQLite URLs, parse `sqlite:///path/to/file.db` to extract the file path and open with modernc.org/sqlite driver
+- [x] For SQLite, enable WAL mode and foreign keys (`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON`) on connection open
+- [x] Keep `internal/database/postgres.go` working as-is (the factory calls into it for postgres URLs)
+- [x] Create `internal/database/sqlite.go` with `NewSQLiteDB(path string) (*sql.DB, error)`
+- [x] Write tests for factory URL parsing (postgres://, sqlite://, invalid schemes)
+- [x] Write tests for SQLite connection open (temp file, :memory:)
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 2: Create SQLite migration schema
 
