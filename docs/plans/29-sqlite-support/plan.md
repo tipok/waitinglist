@@ -175,14 +175,14 @@ Update `cmd/server/main.go` to use the database factory and construct the approp
 
 Write a shared test suite that runs the same behavioral tests against both backends to ensure feature parity.
 
-- [ ] Create `internal/repository/repotest/` package with shared test helpers
-- [ ] Define test setup functions that create a fresh DB (SQLite :memory: or PG with TEST_DATABASE_URL) and run migrations
-- [ ] Write shared test functions that accept interfaces (not concrete types) and verify identical behavior
-- [ ] Create `internal/repository/postgres/user_test.go` that calls shared tests with PG backend (gated by TEST_DATABASE_URL)
-- [ ] Create `internal/repository/sqlite/user_test.go` that calls shared tests with SQLite backend
-- [ ] Do the same for waitinglist and scheduler repos
-- [ ] Verify all parity: same inputs → same outputs/errors for both backends
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/repository/repotest/` package with shared test helpers
+- [x] Define test setup functions that create a fresh DB (SQLite :memory: or PG with TEST_DATABASE_URL) and run migrations
+- [x] Write shared test functions that accept interfaces (not concrete types) and verify identical behavior
+- [x] Create `internal/repository/postgres/user_test.go` that calls shared tests with PG backend (gated by TEST_DATABASE_URL)
+- [x] Create `internal/repository/sqlite/user_test.go` that calls shared tests with SQLite backend
+- [x] Do the same for waitinglist and scheduler repos
+- [x] Verify all parity: same inputs → same outputs/errors for both backends
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 9: Update configuration and documentation
 
