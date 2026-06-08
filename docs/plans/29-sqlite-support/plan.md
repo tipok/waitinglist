@@ -101,22 +101,22 @@ Write the equivalent DDL for SQLite that produces the same logical schema as `mi
 
 Create the SQLite implementation of user repository operations with SQLite-compatible SQL.
 
-- [ ] Create `internal/repository/sqlite/` package directory
-- [ ] Create `internal/repository/sqlite/user.go` implementing all UserRepository methods
-- [ ] Replace `$1, $2` placeholders with `?` throughout
-- [ ] Replace `pq.Array(ids)` + `ANY($2)` with dynamically built `IN (?, ?, ...)` clauses
-- [ ] Replace `ILIKE '%' || $1 || '%'` with `LIKE '%' || ? || '%'`
-- [ ] Replace `to_char(date_trunc('day', created_at), 'YYYY-MM-DD')` with `strftime('%Y-%m-%d', created_at)`
-- [ ] Replace `(NOW() AT TIME ZONE 'UTC') - ($1 || ' days')::interval` with `datetime('now', '-' || ? || ' days')`
-- [ ] Replace `NULLS LAST` with `CASE WHEN col IS NULL THEN 1 ELSE 0 END, col DESC`
-- [ ] Generate UUID in Go (github.com/google/uuid) for Create method instead of relying on RETURNING gen_random_uuid()
-- [ ] Handle constraint violation errors using SQLite error codes instead of pq.Error (unique constraint = SQLITE_CONSTRAINT_UNIQUE)
-- [ ] Replace `NOW()` in UPDATE queries with `datetime('now')`
-- [ ] Write interface-conformance tests: Create, GetByEmail, GetByID, GetByIDs, GetUserInfoByEmails
-- [ ] Write interface-conformance tests: GrantAccessTx, RevokeAccessTx, CountByAccess
-- [ ] Write interface-conformance tests: EnlistmentsByDay, ListWithAccess, ListAllWithAccess, GetGrantedSince
-- [ ] Write error-case tests: duplicate email, user not found, invalid grant source
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/repository/sqlite/` package directory
+- [x] Create `internal/repository/sqlite/user.go` implementing all UserRepository methods
+- [x] Replace `$1, $2` placeholders with `?` throughout
+- [x] Replace `pq.Array(ids)` + `ANY($2)` with dynamically built `IN (?, ?, ...)` clauses
+- [x] Replace `ILIKE '%' || $1 || '%'` with `LIKE '%' || ? || '%'`
+- [x] Replace `to_char(date_trunc('day', created_at), 'YYYY-MM-DD')` with `strftime('%Y-%m-%d', created_at)`
+- [x] Replace `(NOW() AT TIME ZONE 'UTC') - ($1 || ' days')::interval` with `strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-N days')`
+- [x] Replace `NULLS LAST` with `CASE WHEN col IS NULL THEN 1 ELSE 0 END, col DESC`
+- [x] Generate UUID in Go (github.com/google/uuid) for Create method instead of relying on RETURNING gen_random_uuid()
+- [x] Handle constraint violation errors using SQLite error codes instead of pq.Error (unique constraint = SQLITE_CONSTRAINT_UNIQUE)
+- [x] Replace `NOW()` in UPDATE queries with `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
+- [x] Write interface-conformance tests: Create, GetByEmail, GetByID, GetByIDs, GetUserInfoByEmails
+- [x] Write interface-conformance tests: GrantAccessTx, RevokeAccessTx, CountByAccess
+- [x] Write interface-conformance tests: EnlistmentsByDay, ListWithAccess, ListAllWithAccess, GetGrantedSince
+- [x] Write error-case tests: duplicate email, user not found, invalid grant source
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 4: Implement SQLite WaitingListRepository
 
