@@ -150,14 +150,14 @@ Create the SQLite implementation of scheduler state operations.
 
 Move the existing PostgreSQL repository implementations into `internal/repository/postgres/` to mirror the sqlite package structure.
 
-- [ ] Create `internal/repository/postgres/` package directory
-- [ ] Move user.go → `internal/repository/postgres/user.go` (update package declaration)
-- [ ] Move waitinglist.go → `internal/repository/postgres/waitinglist.go`
-- [ ] Move scheduler.go → `internal/repository/postgres/scheduler.go`
-- [ ] Update all imports in `cmd/server/main.go` and any other files referencing the old `repository` package
-- [ ] Keep `internal/repository/` as a package that holds shared interfaces or can re-export for backward compatibility (if needed by handler interfaces)
-- [ ] Write no new tests — just verify existing tests pass with the relocated code
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `internal/repository/postgres/` package directory
+- [x] Move user.go → `internal/repository/postgres/user.go` (update package declaration)
+- [x] Move waitinglist.go → `internal/repository/postgres/waitinglist.go`
+- [x] Move scheduler.go → `internal/repository/postgres/scheduler.go`
+- [x] Update all imports in `cmd/server/main.go` and any other files referencing the old `repository` package
+- [x] Keep `internal/repository/` as a package that holds shared interfaces or can re-export for backward compatibility (if needed by handler interfaces)
+- [x] Write no new tests — just verify existing tests pass with the relocated code
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 7: Wire up dual-backend in main.go
 

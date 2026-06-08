@@ -19,7 +19,7 @@ import (
 	"github.com/tipok/waitinglist/internal/handler/adminui"
 	lg "github.com/tipok/waitinglist/internal/logger"
 	"github.com/tipok/waitinglist/internal/notifier"
-	"github.com/tipok/waitinglist/internal/repository"
+	"github.com/tipok/waitinglist/internal/repository/postgres"
 	"github.com/tipok/waitinglist/internal/waitlist"
 )
 
@@ -75,9 +75,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	userRepo := repository.NewUserRepository(db)
-	waitListRepo := repository.NewWaitingListRepository(db)
-	schedulerRepo := repository.NewSchedulerRepository(db)
+	userRepo := postgres.NewUserRepository(db)
+	waitListRepo := postgres.NewWaitingListRepository(db)
+	schedulerRepo := postgres.NewSchedulerRepository(db)
 
 	projects := cfg.Projects.Projects()
 
