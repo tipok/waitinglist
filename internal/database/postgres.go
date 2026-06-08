@@ -20,11 +20,9 @@ func NewPostgresDB(databaseURL string) (*sql.DB, error) {
 	}
 
 	if err := db.Ping(); err != nil {
-		err := db.Close()
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("pinging database: %w", err)
+		pingErr := err
+		_ = db.Close()
+		return nil, fmt.Errorf("pinging database: %w", pingErr)
 	}
 
 	return db, nil

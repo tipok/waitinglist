@@ -71,14 +71,14 @@ func (r *UserRepository) Create(ctx context.Context, user *model.UserEntity) err
 //
 //goland:noinspection ALL
 func (r *UserRepository) CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error {
-	user.ID = uuid.New().String()
+	id := uuid.New().String()
 
 	query := `INSERT INTO user_entity (id, project_slug, firstname, lastname, email, ip_address)
 		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING has_access, created_at`
 
 	err := tx.QueryRowContext(ctx, query,
-		user.ID, user.ProjectSlug, user.Firstname, user.Lastname, user.Email, user.IPAddress,
+		id, user.ProjectSlug, user.Firstname, user.Lastname, user.Email, user.IPAddress,
 	).Scan(&user.HasAccess, &timeScanner{&user.CreatedAt})
 	if err != nil {
 		if isSQLiteUniqueViolation(err) {
@@ -87,6 +87,7 @@ func (r *UserRepository) CreateTx(ctx context.Context, tx model.DBTX, user *mode
 		return fmt.Errorf("inserting user: %w", err)
 	}
 
+	user.ID = id
 	return nil
 }
 
