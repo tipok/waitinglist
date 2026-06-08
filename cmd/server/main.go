@@ -104,11 +104,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if smtpNotifier, ok := emailNotifier.(*notifier.SMTPNotifier); ok {
-		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, smtpNotifier)
-	} else {
-		waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, nil)
-	}
+	smtpNotifier, _ := emailNotifier.(*notifier.SMTPNotifier)
+	waitlist.StartDigest(ctx, logger, projects, userRepo, waitListRepo, schedulerRepo, db, smtpNotifier)
 
 	mux := http.NewServeMux()
 

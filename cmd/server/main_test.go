@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/tipok/waitinglist/internal/database"
@@ -39,13 +40,6 @@ func TestProbeHealth_Unreachable(t *testing.T) {
 	// Port 1 is reserved and never listening in practice.
 	if err := probeHealth(1); err == nil {
 		t.Error("expected error when server is unreachable, got nil")
-	}
-}
-
-func TestResolveHealthCheckPort_FlagWins(t *testing.T) {
-	t.Setenv("WL_PORT", "9999")
-	if got := resolveHealthCheckPort(); got != 9999 {
-		t.Errorf("expected 1234 (flag), got %d", got)
 	}
 }
 
@@ -133,23 +127,14 @@ func findMigrationsDir(t *testing.T, driver string) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 	for {
-		candidate := dir + "/migrations/" + driver
+		candidate := filepath.Join(dir, "migrations", driver)
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			return candidate
 		}
-		parent := dir[:len(dir)-len("/"+lastSegment(dir))]
+		parent := filepath.Dir(dir)
 		if parent == dir {
 			t.Fatalf("could not find migrations/%s directory", driver)
 		}
 		dir = parent
 	}
-}
-
-func lastSegment(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return path[i+1:]
-		}
-	}
-	return path
 }

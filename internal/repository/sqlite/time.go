@@ -27,7 +27,7 @@ type timeScanner struct{ t *time.Time }
 
 func (s *timeScanner) Scan(v any) error {
 	if v == nil {
-		return nil
+		return fmt.Errorf("timeScanner: unexpected NULL for non-nullable column")
 	}
 	str, ok := v.(string)
 	if !ok {

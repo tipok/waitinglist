@@ -78,13 +78,25 @@ func TestParseSQLitePath(t *testing.T) {
 	cases := []struct {
 		url      string
 		expected string
+		wantErr  bool
 	}{
-		{"sqlite://:memory:", ":memory:"},
-		{"sqlite:///absolute/path/to/file.db", "/absolute/path/to/file.db"},
-		{"sqlite://relative/path.db", "relative/path.db"},
+		{"sqlite://:memory:", ":memory:", false},
+		{"sqlite:///absolute/path/to/file.db", "/absolute/path/to/file.db", false},
+		{"sqlite://relative/path.db", "relative/path.db", false},
+		{"sqlite://", "", true},
 	}
 	for _, tc := range cases {
-		got := parseSQLitePath(tc.url)
+		got, err := parseSQLitePath(tc.url)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("parseSQLitePath(%q) expected error, got nil", tc.url)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseSQLitePath(%q) unexpected error: %v", tc.url, err)
+			continue
+		}
 		if got != tc.expected {
 			t.Errorf("parseSQLitePath(%q) = %q, want %q", tc.url, got, tc.expected)
 		}

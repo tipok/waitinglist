@@ -17,6 +17,7 @@ func NewSQLiteDB(path string) (*sql.DB, error) {
 
 	// SQLite does not support concurrent writers; limit to one open connection.
 	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL",

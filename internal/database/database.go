@@ -34,7 +34,10 @@ func New(databaseURL string) (*sql.DB, Driver, error) {
 		return db, DriverPostgres, nil
 
 	case strings.HasPrefix(databaseURL, "sqlite://"):
-		path := parseSQLitePath(databaseURL)
+		path, err := parseSQLitePath(databaseURL)
+		if err != nil {
+			return nil, "", fmt.Errorf("sqlite: %w", err)
+		}
 		db, err := NewSQLiteDB(path)
 		if err != nil {
 			return nil, "", fmt.Errorf("sqlite: %w", err)
@@ -50,11 +53,10 @@ func New(databaseURL string) (*sql.DB, Driver, error) {
 // sqlite:///absolute/path → /absolute/path
 // sqlite://relative/path  → relative/path
 // sqlite://:memory:       → :memory:
-func parseSQLitePath(rawURL string) string {
-	// Strip the "sqlite://" prefix.
+func parseSQLitePath(rawURL string) (string, error) {
 	rest := strings.TrimPrefix(rawURL, "sqlite://")
-	// An absolute path is encoded as sqlite:///path, which after stripping gives /path.
-	// A relative path is encoded as sqlite://rel/path, which gives rel/path.
-	// :memory: is encoded as sqlite://:memory:, which gives :memory:.
-	return rest
+	if rest == "" {
+		return "", fmt.Errorf("sqlite URL %q has no path", rawURL)
+	}
+	return rest, nil
 }
