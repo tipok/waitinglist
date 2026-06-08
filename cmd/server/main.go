@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -18,8 +19,10 @@ import (
 	"github.com/tipok/waitinglist/internal/handler"
 	"github.com/tipok/waitinglist/internal/handler/adminui"
 	lg "github.com/tipok/waitinglist/internal/logger"
+	"github.com/tipok/waitinglist/internal/model"
 	"github.com/tipok/waitinglist/internal/notifier"
 	"github.com/tipok/waitinglist/internal/repository/postgres"
+	"github.com/tipok/waitinglist/internal/repository/sqlite"
 	"github.com/tipok/waitinglist/internal/waitlist"
 )
 
@@ -75,9 +78,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	userRepo := postgres.NewUserRepository(db)
-	waitListRepo := postgres.NewWaitingListRepository(db)
-	schedulerRepo := postgres.NewSchedulerRepository(db)
+	userRepo, waitListRepo, schedulerRepo := buildRepositories(db, driver)
 
 	projects := cfg.Projects.Projects()
 
@@ -211,4 +212,52 @@ func runHealthCheck(port int) {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+// userRepository aggregates all user-store methods used across handlers and
+// background goroutines in this binary.
+type userRepository interface {
+	CreateTx(ctx context.Context, tx model.DBTX, user *model.UserEntity) error
+	GetByEmailTx(ctx context.Context, tx model.DBTX, projectSlug, email string) (*model.UserEntity, error)
+	GetUserInfoByEmails(ctx context.Context, projectSlug string, emails []string) ([]model.UserInfo, error)
+	CountByAccess(ctx context.Context, projectSlug string) (int, int, error)
+	EnlistmentsByDay(ctx context.Context, projectSlug string, days int) ([]model.DayCount, error)
+	ListWithAccess(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.UserEntity, error)
+	ListAllWithAccess(ctx context.Context, projectSlug string) ([]model.UserEntity, error)
+	GetByID(ctx context.Context, id string) (*model.UserEntity, error)
+	GetByIDs(ctx context.Context, ids []string) ([]model.UserEntity, error)
+	GrantAccessTx(ctx context.Context, tx model.DBTX, ids []string, source string) error
+	RevokeAccess(ctx context.Context, id, reason, by string) error
+	GetGrantedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.UserEntity, error)
+}
+
+// waitingListRepository aggregates all waiting-list methods used in this binary.
+type waitingListRepository interface {
+	Add(ctx context.Context, tx model.DBTX, projectSlug, userID string) (*model.WaitingListEntry, error)
+	GetAll(ctx context.Context, projectSlug string) ([]model.WaitingListEntry, error)
+	GetWithOffsetLimit(ctx context.Context, projectSlug string, offset, limit *int) ([]model.WaitingListEntry, error)
+	ListJoined(ctx context.Context, projectSlug, emailLike string, limit, offset int) ([]model.WaitingListAdminRow, error)
+	ListAllJoined(ctx context.Context, projectSlug string) ([]model.WaitingListAdminRow, error)
+	DeleteByID(ctx context.Context, id string) error
+	DeleteByIDsTx(ctx context.Context, tx model.DBTX, ids []string) error
+	DeleteByUserIDTx(ctx context.Context, tx model.DBTX, userID string) error
+	GetEnlistedSince(ctx context.Context, projectSlug string, since time.Time) ([]model.WaitingListAdminRow, error)
+	BeginTx(ctx context.Context) (model.Tx, error)
+}
+
+// schedulerRepository aggregates all scheduler-state methods used in this binary.
+type schedulerRepository interface {
+	GetLastSuccess(ctx context.Context, projectSlug, key string) (time.Time, error)
+	UpdateLastSuccess(ctx context.Context, tx model.DBTX, projectSlug, key string) error
+}
+
+// buildRepositories constructs the right repository implementations for the
+// detected database driver.
+func buildRepositories(db *sql.DB, driver database.Driver) (userRepository, waitingListRepository, schedulerRepository) {
+	switch driver {
+	case database.DriverSQLite:
+		return sqlite.NewUserRepository(db), sqlite.NewWaitingListRepository(db), sqlite.NewSchedulerRepository(db)
+	default:
+		return postgres.NewUserRepository(db), postgres.NewWaitingListRepository(db), postgres.NewSchedulerRepository(db)
+	}
 }

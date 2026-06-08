@@ -163,13 +163,13 @@ Move the existing PostgreSQL repository implementations into `internal/repositor
 
 Update `cmd/server/main.go` to use the database factory and construct the appropriate repository implementations based on the detected driver.
 
-- [ ] Replace direct `database.NewPostgresDB(...)` call with `database.New(databaseURL)` factory
-- [ ] Based on returned `Driver`, construct either `postgres.NewUserRepository(db)` or `sqlite.NewUserRepository(db)` (same for waitlist and scheduler repos)
-- [ ] For SQLite URLs, skip the `url.UserPassword` handling (no username/password in SQLite URLs)
-- [ ] Select migrations directory based on driver: `cfg.Database.MigrationsDir + "/postgres"` or `+ "/sqlite"`
-- [ ] Update health handler: SQLite health check should use `db.Ping()` (same as postgres, already works)
-- [ ] Write integration test: start with SQLite URL, verify the full startup flow works (migrations + repos)
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Replace direct `database.NewPostgresDB(...)` call with `database.New(databaseURL)` factory
+- [x] Based on returned `Driver`, construct either `postgres.NewUserRepository(db)` or `sqlite.NewUserRepository(db)` (same for waitlist and scheduler repos)
+- [x] For SQLite URLs, skip the `url.UserPassword` handling (no username/password in SQLite URLs)
+- [x] Select migrations directory based on driver: `cfg.Database.MigrationsDir + "/postgres"` or `+ "/sqlite"`
+- [x] Update health handler: SQLite health check should use `db.Ping()` (same as postgres, already works)
+- [x] Write integration test: start with SQLite URL, verify the full startup flow works (migrations + repos)
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 8: Shared repository interface tests (TDD parity validation)
 
