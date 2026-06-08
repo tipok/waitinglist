@@ -41,13 +41,14 @@ func buildSQLiteDSN(path string) string {
 		// In-memory databases use a plain path; WAL is not applicable.
 		return path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	}
-	// For file paths that already use file: URI syntax pass them through unchanged
-	// and append pragmas only when no query string is present yet.
+	// For file paths that already use file: URI syntax, append pragmas using &
+	// if a query string is already present, or ? otherwise.
 	if strings.HasPrefix(path, "file:") {
+		sep := "?"
 		if strings.Contains(path, "?") {
-			return path
+			sep = "&"
 		}
-		return path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+		return path + sep + "_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
 	}
 	// Plain file path — wrap in file: URI so driver processes the query parameters.
 	return "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
