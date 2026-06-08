@@ -198,17 +198,17 @@ Update config handling to document the URL-based detection and ensure SQLite pat
 
 ### Task 10: Verify acceptance criteria
 
-- [ ] Verify: `database.url = "postgres://..."` uses PostgreSQL with lib/pq (no behavior change)
-- [ ] Verify: `database.url = "sqlite:///path/to/db.sqlite"` uses SQLite with modernc.org/sqlite
-- [ ] Verify: migrations run correctly on both backends (fresh DB)
-- [ ] Verify: all CRUD operations produce identical results on both backends
-- [ ] Verify: scheduler works correctly with SQLite (upsert, timestamp comparison)
-- [ ] Verify: constraint violations map to the same sentinel errors on both backends
-- [ ] Verify: UUID generation works on SQLite (Go-generated UUIDs stored as TEXT)
-- [ ] Verify: weighted_created_at ordering works correctly on SQLite
-- [ ] Run full test suite (`make test`)
-- [ ] Run linter (`make lint`) — all issues must be fixed
-- [ ] Run format check (`make format`)
+- [x] Verify: `database.url = "postgres://..."` uses PostgreSQL with lib/pq (no behavior change)
+- [x] Verify: `database.url = "sqlite:///path/to/db.sqlite"` uses SQLite with modernc.org/sqlite
+- [x] Verify: migrations run correctly on both backends (fresh DB)
+- [x] Verify: all CRUD operations produce identical results on both backends
+- [x] Verify: scheduler works correctly with SQLite (upsert, timestamp comparison)
+- [x] Verify: constraint violations map to the same sentinel errors on both backends
+- [x] Verify: UUID generation works on SQLite (Go-generated UUIDs stored as TEXT)
+- [x] Verify: weighted_created_at ordering works correctly on SQLite
+- [x] Run full test suite (`make test`)
+- [x] Run linter (`make lint`) — all issues must be fixed
+- [x] Run format check (`make format`)
 
 ### Task 11: [Final] Update documentation
 
