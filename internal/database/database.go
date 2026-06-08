@@ -55,7 +55,7 @@ func New(databaseURL string) (*sql.DB, Driver, error) {
 // sqlite://:memory:       → :memory:
 func parseSQLitePath(rawURL string) (string, error) {
 	rest := strings.TrimPrefix(rawURL, "sqlite://")
-	if rest == "" {
+	if strings.TrimRight(rest, "/") == "" {
 		return "", fmt.Errorf("sqlite URL %q has no path", rawURL)
 	}
 	return rest, nil

@@ -84,6 +84,7 @@ func TestParseSQLitePath(t *testing.T) {
 		{"sqlite:///absolute/path/to/file.db", "/absolute/path/to/file.db", false},
 		{"sqlite://relative/path.db", "relative/path.db", false},
 		{"sqlite://", "", true},
+		{"sqlite:///", "", true},
 	}
 	for _, tc := range cases {
 		got, err := parseSQLitePath(tc.url)
