@@ -735,13 +735,13 @@ func findMigrationsDir(t *testing.T) string {
 		t.Fatalf("getting working directory: %v", err)
 	}
 	for {
-		candidate := filepath.Join(dir, "migrations")
+		candidate := filepath.Join(dir, "migrations", "postgres")
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			return candidate
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("could not find migrations directory")
+			t.Fatal("could not find migrations/postgres directory")
 		}
 		dir = parent
 	}

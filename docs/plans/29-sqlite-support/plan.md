@@ -80,22 +80,22 @@ Extract explicit repository interfaces from the handler-defined interfaces into 
 
 Write the equivalent DDL for SQLite that produces the same logical schema as `migrations/001_init.sql`.
 
-- [ ] Create `migrations/sqlite/001_init.sql` with SQLite-compatible DDL
-- [ ] Move existing PostgreSQL migrations to `migrations/postgres/001_init.sql`
-- [ ] UUID primary keys: use `TEXT PRIMARY KEY` with no server-side default (UUID generated in Go)
-- [ ] Replace `gen_random_uuid()` defaults — SQLite won't auto-generate; handled in repository layer
-- [ ] Replace `timestamp default now()` → `TEXT DEFAULT (datetime('now'))`
-- [ ] Replace `inet` → `TEXT`
-- [ ] Replace `timestamp with time zone` → `TEXT`
-- [ ] Replace generated column `weighted_created_at` with SQLite expression: `(datetime(created_at, '-' || (weight * 3600) || ' seconds'))`
-- [ ] Remove `WITH (fillfactor=...)` storage parameters
-- [ ] Replace `ARRAY['scheduler'::text, 'admin'::text]` CHECK constraint with `CHECK (access_granted_by IN ('scheduler', 'admin'))`
-- [ ] Preserve all indexes (CREATE INDEX IF NOT EXISTS syntax works in SQLite)
-- [ ] Preserve foreign key with ON DELETE CASCADE
-- [ ] Update `internal/database/database.go` or migration runner to select the right migrations directory based on driver
-- [ ] Write test: run SQLite migrations on a fresh :memory: DB and verify all tables exist with correct columns
-- [ ] Write test: verify PostgreSQL migrations still work (gated by TEST_DATABASE_URL)
-- [ ] Run `make format && make lint && make test` — must pass before next task
+- [x] Create `migrations/sqlite/001_init.sql` with SQLite-compatible DDL
+- [x] Move existing PostgreSQL migrations to `migrations/postgres/001_init.sql`
+- [x] UUID primary keys: use `TEXT PRIMARY KEY` with no server-side default (UUID generated in Go)
+- [x] Replace `gen_random_uuid()` defaults — SQLite won't auto-generate; handled in repository layer
+- [x] Replace `timestamp default now()` → `TEXT DEFAULT (datetime('now'))`
+- [x] Replace `inet` → `TEXT`
+- [x] Replace `timestamp with time zone` → `TEXT`
+- [x] Replace generated column `weighted_created_at` with SQLite expression: `(datetime(created_at, '-' || (weight * 3600) || ' seconds'))`
+- [x] Remove `WITH (fillfactor=...)` storage parameters
+- [x] Replace `ARRAY['scheduler'::text, 'admin'::text]` CHECK constraint with `CHECK (access_granted_by IN ('scheduler', 'admin'))`
+- [x] Preserve all indexes (CREATE INDEX IF NOT EXISTS syntax works in SQLite)
+- [x] Preserve foreign key with ON DELETE CASCADE
+- [x] Update `internal/database/database.go` or migration runner to select the right migrations directory based on driver
+- [x] Write test: run SQLite migrations on a fresh :memory: DB and verify all tables exist with correct columns
+- [x] Write test: verify PostgreSQL migrations still work (gated by TEST_DATABASE_URL)
+- [x] Run `make format && make lint && make test` — must pass before next task
 
 ### Task 3: Implement SQLite UserRepository
 

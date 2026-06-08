@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tipok/waitinglist/internal/config"
@@ -43,16 +44,21 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	dbUrl, err := url.Parse(cfg.Database.URL)
-	if err != nil {
-		logger.Error("Error parsing database URL", "error", err)
-		os.Exit(1)
+	dbURL := cfg.Database.URL
+	if !strings.HasPrefix(dbURL, "sqlite://") {
+		// For PostgreSQL, allow username/password to be specified separately.
+		parsed, err := url.Parse(dbURL)
+		if err != nil {
+			logger.Error("Error parsing database URL", "error", err)
+			os.Exit(1)
+		}
+		if parsed.User == nil {
+			parsed.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
+		}
+		dbURL = parsed.String()
 	}
 
-	if dbUrl.User == nil {
-		dbUrl.User = url.UserPassword(cfg.Database.Username, cfg.Database.Password)
-	}
-	db, err := database.NewPostgresDB(dbUrl.String())
+	db, driver, err := database.New(dbURL)
 	if err != nil {
 		logger.Error("Error connecting to database", "error", err)
 		os.Exit(1)
@@ -63,7 +69,8 @@ func main() {
 		}
 	}()
 
-	if err := database.RunMigrations(db, cfg.Database.MigrationsDir, logger); err != nil {
+	migrationsDir := database.MigrationsDir(cfg.Database.MigrationsDir, driver)
+	if err := database.RunMigrations(db, migrationsDir, logger); err != nil {
 		logger.Error("Error running migrations", "error", err)
 		os.Exit(1)
 	}

@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -13,6 +14,12 @@ const (
 	DriverPostgres Driver = "postgres"
 	DriverSQLite   Driver = "sqlite"
 )
+
+// MigrationsDir returns the driver-specific migrations subdirectory rooted at
+// baseDir (e.g. "migrations/postgres" or "migrations/sqlite").
+func MigrationsDir(baseDir string, driver Driver) string {
+	return filepath.Join(baseDir, string(driver))
+}
 
 // New opens a database connection by auto-detecting the driver from the URL scheme.
 // "postgres://" uses PostgreSQL (github.com/lib/pq).
