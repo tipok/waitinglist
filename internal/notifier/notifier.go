@@ -28,17 +28,20 @@ type templateData struct {
 	Firstname   string
 	Lastname    string
 	ProjectName string
+	Email       string
+	LoginURL    string
 }
 
 // SMTPNotifier sends HTML emails via SMTP when users are granted access.
 type SMTPNotifier struct {
-	host     string
-	port     int
-	username string
-	password string
-	useTLS   bool
-	tmpl     *template.Template
-	logger   *slog.Logger
+	host             string
+	port             int
+	username         string
+	password         string
+	useTLS           bool
+	tmpl             *template.Template
+	projectTemplates map[string]*template.Template
+	logger           *slog.Logger
 }
 
 // New creates an SMTPNotifier from the given SMTP config. Returns nil if
@@ -51,14 +54,32 @@ func New(cfg config.SMTPConfig, logger *slog.Logger) *SMTPNotifier {
 	tmpl := template.Must(template.ParseFS(templateFS, "templates/access_granted.html"))
 
 	return &SMTPNotifier{
-		host:     cfg.Host,
-		port:     cfg.Port,
-		username: cfg.Username,
-		password: cfg.Password,
-		useTLS:   cfg.TLS,
-		tmpl:     tmpl,
-		logger:   logger,
+		host:             cfg.Host,
+		port:             cfg.Port,
+		username:         cfg.Username,
+		password:         cfg.Password,
+		useTLS:           cfg.TLS,
+		tmpl:             tmpl,
+		projectTemplates: make(map[string]*template.Template),
+		logger:           logger,
 	}
+}
+
+// LoadProjectTemplates parses custom HTML templates from disk for the given
+// slug-to-path mappings. Returns an error if any path is unreadable or the
+// template fails to parse (fail-fast at startup).
+func (n *SMTPNotifier) LoadProjectTemplates(templates map[string]string) error {
+	for slug, path := range templates {
+		if path == "" {
+			continue
+		}
+		tmpl, err := template.ParseFiles(path)
+		if err != nil {
+			return fmt.Errorf("project %q: failed to parse template %q: %w", slug, path, err)
+		}
+		n.projectTemplates[slug] = tmpl
+	}
+	return nil
 }
 
 // NotifyAccessGranted sends an access-granted email to the user. Skips
@@ -72,10 +93,17 @@ func (n *SMTPNotifier) NotifyAccessGranted(user model.UserEntity, project model.
 		Firstname:   user.Firstname,
 		Lastname:    user.Lastname,
 		ProjectName: project.Name,
+		Email:       user.Email,
+		LoginURL:    project.URL,
+	}
+
+	tmpl := n.tmpl
+	if pt, ok := n.projectTemplates[project.Slug]; ok {
+		tmpl = pt
 	}
 
 	var body bytes.Buffer
-	if err := n.tmpl.Execute(&body, data); err != nil {
+	if err := tmpl.Execute(&body, data); err != nil {
 		n.logger.Warn("notifier: failed to render email template", "error", err, "user_id", user.ID)
 		return
 	}

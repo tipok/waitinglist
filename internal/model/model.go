@@ -57,8 +57,9 @@ var (
 
 // ProjectEmail holds per-project email notification settings.
 type ProjectEmail struct {
-	From    string `json:"from,omitempty"`
-	Subject string `json:"subject,omitempty"`
+	From         string `json:"from,omitempty"`
+	Subject      string `json:"subject,omitempty"`
+	TemplatePath string `json:"template_path,omitempty"`
 }
 
 // ProjectDigest holds per-project digest email settings.
@@ -73,6 +74,7 @@ type ProjectDigest struct {
 type Project struct {
 	Slug                  string        `json:"slug"`
 	Name                  string        `json:"name"`
+	URL                   string        `json:"url,omitempty"`
 	Email                 ProjectEmail  `json:"email"`
 	Digest                ProjectDigest `json:"digest"`
 	EntryBatchSize        *int          `json:"entry_batch_size,omitempty"`

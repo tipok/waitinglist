@@ -92,6 +92,19 @@ func main() {
 
 	var emailNotifier notifier.Notifier
 	if n := notifier.New(cfg.SMTP, logger); n != nil {
+		tmplPaths := make(map[string]string)
+		for slug, def := range cfg.Projects.Definitions {
+			if def.Email.TemplatePath != "" {
+				tmplPaths[slug] = def.Email.TemplatePath
+			}
+		}
+		if len(tmplPaths) > 0 {
+			if err := n.LoadProjectTemplates(tmplPaths); err != nil {
+				logger.Error("failed to load project email templates", "error", err)
+				os.Exit(1)
+			}
+			logger.Info("loaded custom email templates", "count", len(tmplPaths))
+		}
 		emailNotifier = n
 		logger.Info("smtp notifier enabled", "host", cfg.SMTP.Host, "port", cfg.SMTP.Port)
 	}

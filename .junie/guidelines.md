@@ -105,11 +105,13 @@ The application loads configuration from a JSON file passed via `--config` flag,
 | `projects.headerName` | string | `X-Project-ID` | Header name for project identification |
 | `projects.defaultSlug` | string | `default` | Fallback project slug when no header/host match |
 | `projects.definitions.<slug>.name` | string | — | Human-readable project name |
+| `projects.definitions.<slug>.url` | string | — | Project URL (available as `{{.LoginURL}}` in email templates) |
 | `projects.definitions.<slug>.hostMapping` | string | — | Hostname that resolves to this project (one per project) |
 | `projects.definitions.<slug>.entryBatchSize` | int | — | Per-project override for scheduler batch size |
 | `projects.definitions.<slug>.entryWindowInterval` | duration | — | Per-project override for entry window |
 | `projects.definitions.<slug>.email.from` | string | — | Sender address for access-granted email (skip if empty) |
 | `projects.definitions.<slug>.email.subject` | string | — | Subject line for access-granted email (skip if empty) |
+| `projects.definitions.<slug>.email.templatePath` | string | — | Path to custom HTML template for access-granted email (falls back to built-in template). Template variables: `{{.Firstname}}`, `{{.Lastname}}`, `{{.ProjectName}}`, `{{.Email}}`, `{{.LoginURL}}` |
 | `projects.definitions.<slug>.schedulerDisabled` | bool | `false` | Disable scheduler for this project |
 | `projects.definitions.<slug>.digest.recipients` | []string | — | Email addresses to receive digest (empty = digest disabled) |
 | `projects.definitions.<slug>.digest.schedule` | string | — | Cron expression for digest schedule (e.g. `"0 9 * * *"`). Supports `CRON_TZ=` prefix. Empty = digest disabled |
@@ -276,6 +278,7 @@ The `access_granted_by` column is constrained to known values. The `validGrantSo
 | `27-admin-digest-email` | ✅ Complete | Periodic admin digest email summarizing new waitlist entries and access grants per project |
 | `28-admin-send-digest-now` | ✅ Complete | Admin "Send Digest Now" button: full-state snapshot digest via `POST /admin/digest/send` |
 | `29-sqlite-support` | ✅ Complete | SQLite as alternative backend alongside PostgreSQL; auto-detected from URL scheme; dual migrations, dual repository implementations, shared parity tests |
+| `30-custom-email-templates` | ✅ Complete | Per-project custom HTML templates for access-granted emails; configurable `templatePath` + project `url` for `{{.LoginURL}}` |
 
 ## Development Workflow
 

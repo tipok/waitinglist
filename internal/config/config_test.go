@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -330,6 +331,98 @@ func TestValidate_DefaultSlugMissing_ReturnsError(t *testing.T) {
 	err := pc.Validate()
 	if err == nil {
 		t.Fatal("expected error for missing defaultSlug in definitions")
+	}
+}
+
+func TestValidate_InvalidTemplatePath_ReturnsError(t *testing.T) {
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{
+			"default": {Name: "Default", Email: ProjectEmailConfig{TemplatePath: "/nonexistent/template.html"}},
+		},
+	}
+
+	err := pc.Validate()
+	if err == nil {
+		t.Fatal("expected error for non-existent templatePath")
+	}
+	if !strings.Contains(err.Error(), "templatePath") {
+		t.Errorf("error should mention templatePath, got: %v", err)
+	}
+}
+
+func TestValidate_ValidTemplatePath_NoError(t *testing.T) {
+	dir := t.TempDir()
+	tmplPath := filepath.Join(dir, "custom.html")
+	if err := os.WriteFile(tmplPath, []byte(`<p>Hello</p>`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pc := ProjectsConfig{
+		DefaultSlug: "default",
+		Definitions: map[string]ProjectDefinition{
+			"default": {Name: "Default", Email: ProjectEmailConfig{TemplatePath: tmplPath}},
+		},
+	}
+
+	err := pc.Validate()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_WithTemplatePath(t *testing.T) {
+	dir := t.TempDir()
+	tmplPath := filepath.Join(dir, "custom.html")
+	if err := os.WriteFile(tmplPath, []byte(`<p>Hello</p>`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	path := writeTempConfig(t, `{
+		"projects": {
+			"defaultSlug": "default",
+			"definitions": {
+				"default": {"name": "Default", "email": {"templatePath": "`+tmplPath+`"}}
+			}
+		}
+	}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	def := cfg.Projects.Definitions["default"]
+	if def.Email.TemplatePath != tmplPath {
+		t.Errorf("expected templatePath %q, got %q", tmplPath, def.Email.TemplatePath)
+	}
+}
+
+func TestLoad_WithProjectURL(t *testing.T) {
+	path := writeTempConfig(t, `{
+		"projects": {
+			"defaultSlug": "default",
+			"definitions": {
+				"default": {"name": "Default", "url": "https://example.com"}
+			}
+		}
+	}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	def := cfg.Projects.Definitions["default"]
+	if def.URL != "https://example.com" {
+		t.Errorf("expected url https://example.com, got %q", def.URL)
+	}
+
+	projects := cfg.Projects.Projects()
+	for _, p := range projects {
+		if p.Slug == "default" && p.URL != "https://example.com" {
+			t.Errorf("expected model.Project.URL to be https://example.com, got %q", p.URL)
+		}
 	}
 }
 

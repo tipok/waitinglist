@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -54,8 +55,9 @@ type ProjectsConfig struct {
 
 // ProjectEmailConfig holds per-project email notification settings in config.
 type ProjectEmailConfig struct {
-	From    string `koanf:"from"`
-	Subject string `koanf:"subject"`
+	From         string `koanf:"from"`
+	Subject      string `koanf:"subject"`
+	TemplatePath string `koanf:"templatePath"`
 }
 
 // ProjectDigestConfig holds per-project digest email settings in config.
@@ -69,6 +71,7 @@ type ProjectDigestConfig struct {
 // ProjectDefinition holds per-project metadata and optional scheduler overrides.
 type ProjectDefinition struct {
 	Name                string              `koanf:"name"`
+	URL                 string              `koanf:"url"`
 	HostMapping         string              `koanf:"hostMapping"`
 	Email               ProjectEmailConfig  `koanf:"email"`
 	Digest              ProjectDigestConfig `koanf:"digest"`
@@ -99,6 +102,11 @@ func (p ProjectsConfig) Validate() error {
 				return fmt.Errorf("projects.definitions[%q].digest.schedule: invalid cron expression %q: %w", slug, def.Digest.Schedule, err)
 			}
 		}
+		if def.Email.TemplatePath != "" {
+			if _, err := os.Stat(def.Email.TemplatePath); err != nil {
+				return fmt.Errorf("projects.definitions[%q].email.templatePath: file not accessible: %w", slug, err)
+			}
+		}
 	}
 	return nil
 }
@@ -121,9 +129,11 @@ func (p ProjectsConfig) Projects() []model.Project {
 		proj := model.Project{
 			Slug: slug,
 			Name: def.Name,
+			URL:  def.URL,
 			Email: model.ProjectEmail{
-				From:    def.Email.From,
-				Subject: def.Email.Subject,
+				From:         def.Email.From,
+				Subject:      def.Email.Subject,
+				TemplatePath: def.Email.TemplatePath,
 			},
 			Digest: model.ProjectDigest{
 				Recipients: def.Digest.Recipients,
