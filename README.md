@@ -11,7 +11,46 @@ A self-hosted waiting list service written in Go. It lets you gate access to you
 - **Health endpoint** — `/healthz` pings the database and returns a structured JSON response (suitable for Kubernetes or Docker `HEALTHCHECK`).
 - **Multi-tenancy (projects)** — isolate users and waiting lists across multiple projects. Resolve the active project via an HTTP header, hostname mapping, or a default slug.
 - **Dual database backend** — auto-detects PostgreSQL (`postgres://`) or SQLite (`sqlite://`) from the connection URL. SQLite requires no external server and runs as a single binary with a local file.
+- **SMTP notifications** — sends access-granted emails and scheduled digest summaries with per-project sender, subject, and custom HTML templates.
 - **Minimal dependencies** — Go standard library `net/http`, PostgreSQL via `lib/pq`, SQLite via `modernc.org/sqlite` (pure Go, no CGO), configuration via `koanf`.
+
+## Highlights
+
+### Single Binary, Zero Infrastructure
+
+Deploy one static binary with no runtime dependencies. The embedded admin SPA, email templates, and migrations are all baked in via `go:embed` — no file mounts, no asset servers, no separate frontend repo. Pair with SQLite for a fully self-contained service that needs nothing but a config file.
+
+### True Multi-Tenancy Without a Tenant Table
+
+Projects are defined entirely in configuration. Each project gets its own isolated user pool, waiting list queue, scheduler state, and email settings — yet they all share one database and one process. Tenant resolution happens automatically via HTTP header, hostname mapping, or a default fallback.
+
+### Intelligent Weighted Scheduling
+
+The scheduler isn't just a FIFO queue. Each waiting list entry carries a **weight** that shifts its effective priority (computed as `created_at - weight × hours`). This lets you boost VIP signups or deprioritize bulk imports without manual intervention. Batch size, cooldown window, and check interval are all tunable per project.
+
+### Per-Project Email Customization
+
+Every project can have its own sender address, subject line, and custom HTML template for access-granted notifications. Templates support variables like `{{.Firstname}}`, `{{.ProjectName}}`, and `{{.LoginURL}}` — so each product can send branded emails from its own domain without a separate email service.
+
+### Scheduled Digest Emails
+
+Admins receive periodic activity summaries (new signups, access grants) on a per-project cron schedule — daily at 9am, twice a day, or whatever the project needs. A manual "Send Digest Now" button in the admin panel delivers a full-state snapshot on demand.
+
+### Full Audit Trail
+
+Every access change is attributed. The database records **who** granted or revoked access (`scheduler` vs `admin`), **when** it happened, and for revocations, **why** (a required reason field). IP addresses are captured at signup. This gives you a complete history for compliance and debugging.
+
+### Production-Ready Out of the Box
+
+- **Distroless Docker image** — no shell, non-root user, minimal attack surface
+- **Built-in health probes** — `--health-check` flag works in distroless containers (no curl needed)
+- **Graceful shutdown** — drains in-flight requests on SIGINT with a 5-second timeout
+- **Structured logging** — `slog` with contextual fields; health probes excluded to avoid log spam
+- **Security defaults** — bcrypt authentication, timing-safe comparisons, database-enforced constraints
+
+### Swap Databases Without Code Changes
+
+The same binary runs on PostgreSQL (for high-traffic multi-instance deployments) or SQLite (for single-instance, dev, or edge deployments). The backend is auto-detected from the URL scheme. Both share identical schema semantics, migrations, and query behavior — tested with a shared behavioral test suite.
 
 ## Requirements
 
